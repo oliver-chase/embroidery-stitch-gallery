@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stitch Gallery</title>
+<style>
+  :root {
+    --bg: #f4f1ea; --panel: #ffffff; --ink: #2b2b2b; --muted: #8a8378;
+    --accent: #9a5b3f; --accent-soft: #f2e7e0; --border: #e0dacf; --fabric: #faf8f4;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--ink); display: flex; flex-direction: column; }
+  header { padding: 14px 22px; background: var(--panel); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 14px; flex: 0 0 auto; }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; letter-spacing: 0.3px; }
+  header .count { color: var(--muted); font-size: 13px; margin-left: auto; }
+  button { font: inherit; padding: 7px 14px; border: 1px solid var(--accent);
+    background: var(--accent); color: #fff; border-radius: 6px; cursor: pointer; }
+  button.secondary { background: transparent; color: var(--accent); }
+
+  #main { flex: 1 1 auto; display: flex; min-height: 0; }
+  #sidebar { width: 260px; flex: 0 0 260px; background: var(--panel);
+    border-right: 1px solid var(--border); overflow-y: auto; padding: 10px 6px; }
+  #sidebar .tree-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
+    color: var(--muted); padding: 4px 10px 8px; }
+  .tnode { user-select: none; }
+  .trow { display: flex; align-items: center; gap: 4px; padding: 5px 8px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; white-space: nowrap; }
+  .trow:hover { background: #f6f2ec; }
+  .trow.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .caret { width: 14px; text-align: center; color: var(--muted); transition: transform 0.1s; font-size: 10px; }
+  .caret.open { transform: rotate(90deg); }
+  .caret.leaf { visibility: hidden; }
+  .tchildren { margin-left: 14px; display: none; }
+  .tchildren.open { display: block; }
+  .tcount { color: var(--muted); font-size: 11px; margin-left: auto; padding-left: 8px; }
+
+  #content { flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; min-width: 0; }
+  #breadcrumb { padding: 12px 24px 4px; font-size: 13px; color: var(--muted); flex: 0 0 auto; }
+  #breadcrumb .crumb { color: var(--accent); cursor: pointer; }
+  #breadcrumb .crumb:hover { text-decoration: underline; }
+  #status { padding: 4px 24px; color: var(--muted); font-size: 12px; flex: 0 0 auto; }
+
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 16px; padding: 16px 24px 40px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    overflow: hidden; cursor: pointer; transition: transform 0.08s, box-shadow 0.08s; }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
+  .card canvas { display: block; width: 100%; height: 160px; background: var(--fabric); }
+  .card .meta { padding: 8px 10px; font-size: 12px; }
+  .card .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+  .card .sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .card.broken canvas { background: #f0e8e6; }
+  .card.broken .name { color: #a5493a; }
+
+  .folder-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    cursor: pointer; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; height: 208px; transition: transform 0.08s, box-shadow 0.08s; }
+  .folder-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
+  .folder-card .fic { font-size: 54px; line-height: 1; }
+  .folder-card .fname { margin-top: 10px; font-weight: 500; font-size: 13px; padding: 0 10px;
+    text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .folder-card .fsub { color: var(--muted); font-size: 11px; margin-top: 3px; }
+
+  #drop { margin: auto; padding: 60px; border: 2px dashed var(--border); border-radius: 12px;
+    text-align: center; color: var(--muted); background: var(--panel); max-width: 520px; }
+  #drop.hover { border-color: var(--accent); background: #fbf7f3; }
+  #drop h2 { color: var(--ink); font-weight: 500; }
+  #dropWrap { flex: 1 1 auto; display: flex; }
+
+  #lightbox { position: fixed; inset: 0; background: rgba(20,18,15,0.85);
+    display: none; align-items: center; justify-content: center; z-index: 100; }
+  #lightbox.open { display: flex; }
+  #lightbox .inner { background: var(--panel); border-radius: 12px; padding: 20px;
+    max-width: 90vw; max-height: 90vh; text-align: center; }
+  #lightbox canvas { background: var(--fabric); border-radius: 8px; max-width: 70vw; max-height: 70vh; }
+  #lightbox .lb-meta { margin-top: 12px; font-size: 14px; }
+  #lightbox .lb-sub { color: var(--muted); font-size: 12px; margin-top: 4px; word-break: break-all; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Stitch Gallery</h1>
+  <button id="pickBtn">Choose Folder…</button>
+  <button id="pickFilesBtn" class="secondary">Or pick files</button>
+  <span class="count" id="count"></span>
+</header>
+
+<div id="main">
+  <div id="sidebar" style="display:none">
+    <div class="tree-label">Folders</div>
+    <div id="tree"></div>
+  </div>
+  <div id="content">
+    <div id="dropWrap">
+      <div id="drop">
+        <h2>Drag your embroidery folder here</h2>
+        <p>Or click "Choose Folder…" above. Everything stays on your computer &mdash; nothing is uploaded.</p>
+        <p style="font-size:12px">Reads .dst and .pes files (the two most common formats).</p>
+        <p style="font-size:12px; color:#a5493a">Using OneDrive / iCloud / Dropbox? Make the folder available offline first for best speed.</p>
+      </div>
+    </div>
+    <div id="breadcrumb" style="display:none"></div>
+    <div id="status"></div>
+    <div id="grid"></div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" webkitdirectory directory multiple style="display:none">
+<input type="file" id="fileInputFlat" multiple accept=".dst,.pes" style="display:none">
+
+<div id="lightbox">
+  <div class="inner">
+    <canvas id="lbCanvas" width="600" height="600"></canvas>
+    <div class="lb-meta" id="lbName"></div>
+    <div class="lb-sub" id="lbSub"></div>
+  </div>
+</div>
+
+<script>
+// ---------------- PARSERS (tested) ----------------
+function parseDST(buffer) {
+  const v = new Uint8Array(buffer);
+  const stitches = []; let x = 0, y = 0, pos = 512;
+  while (pos + 3 <= v.length) {
+    const b0 = v[pos], b1 = v[pos+1], b2 = v[pos+2]; pos += 3;
+    if (b2 === 0xF3) break;
+    let dx = 0, dy = 0;
+    if (b0 & 0x01) dx += 1;   if (b0 & 0x02) dx -= 1;
+    if (b0 & 0x04) dx += 9;   if (b0 & 0x08) dx -= 9;
+    if (b0 & 0x80) dy += 1;   if (b0 & 0x40) dy -= 1;
+    if (b0 & 0x20) dy += 9;   if (b0 & 0x10) dy -= 9;
+    if (b1 & 0x01) dx += 3;   if (b1 & 0x02) dx -= 3;
+    if (b1 & 0x04) dx += 27;  if (b1 & 0x08) dx -= 27;
+    if (b1 & 0x80) dy += 3;   if (b1 & 0x40) dy -= 3;
+    if (b1 & 0x20) dy += 27;  if (b1 & 0x10) dy -= 27;
+    if (b2 & 0x04) dx += 81;  if (b2 & 0x08) dx -= 81;
+    if (b2 & 0x20) dy += 81;  if (b2 & 0x10) dy -= 81;
+    x += dx; y += dy;
+    stitches.push({ x, y, jump: (b2 & 0x80) !== 0, colorChange: (b2 & 0x40) !== 0 });
+  }
+  return { stitches, colors: [] };
+}
+function signed12(b){ b &= 0xFFF; return b > 0x7FF ? b - 0x1000 : b; }
+function signed7(b){ return b > 63 ? b - 128 : b; }
+
+// Standard Brother/PEC thread palette. PES files store a colour as an index
+// into this table, so mapping the index bytes here gives the real thread colours.
+const PEC_PALETTE = ["#000000", "#0e1f7c", "#0a55a3", "#008777", "#4b6baf", "#ed171f", "#d15c00", "#913697", "#e49acb", "#915fac", "#9ed67d", "#e8a900", "#feba35", "#ffff00", "#70bc1f", "#ba9800", "#a8a8a8", "#7d6f00", "#ffffb3", "#4f5556", "#000000", "#0b3d91", "#770176", "#293133", "#2a1301", "#f64a8a", "#b27624", "#fcbbc5", "#fe370f", "#f0f0f0", "#6a1c8a", "#a8ddc4", "#2584bb", "#feb343", "#fff36b", "#d0a660", "#d15400", "#66ba49", "#134a46", "#878787", "#d8ccc6", "#435607", "#fdd9de", "#f993bc", "#003822", "#b2afd4", "#686ab0", "#efe3b9", "#f73866", "#b54b64", "#132b1a", "#c70156", "#fe9e32", "#a8deeb", "#00673e", "#4e2990", "#2f7e20", "#ffcccc", "#ffd911", "#095ba6", "#f0f970", "#e3f35b", "#ff9900", "#fff08d", "#ffc8c8"];
+
+function parsePES(buffer) {
+  const v = new Uint8Array(buffer);
+  if (String.fromCharCode(v[0], v[1], v[2], v[3]) !== '#PES') throw new Error('Not a PES file');
+  const pecStart = v[8] | (v[9]<<8) | (v[10]<<16) | (v[11]<<24);
+  // The offset at PES+8 points at the start of the PEC header ("LA:").
+  // Walk the header to the colour table and the stitch stream.
+  let p = pecStart;
+  p += 3;                 // "LA:"
+  p += 16;                // label
+  p += 15;                // padding then 0xFF 0x00
+  p += 1;                 // graphic byte stride
+  p += 1;                 // graphic icon height
+  p += 12;
+  const colorChanges = v[p]; p += 1;
+  const countColors = colorChanges === 0xFF ? 0 : colorChanges + 1;
+  const colors = [];
+  for (let i = 0; i < countColors; i++) colors.push(PEC_PALETTE[v[p + i] % PEC_PALETTE.length]);
+  p += countColors;       // colour index table
+  p += (0x1D0 - colorChanges); // seek to stitch-block length field
+  p += 3;                 // 3-byte block length (unused)
+  p += 11;                // fixed header bytes before stitches
+
+  const stitches = []; let x = 0, y = 0;
+  while (p + 1 < v.length) {
+    let val1 = v[p], val2 = v[p+1];
+    if (val1 === 0xFF && val2 === 0x00) break;
+    if (val1 === 0xFE && val2 === 0xB0) { p += 3; stitches.push({ x, y, jump:false, colorChange:true }); continue; }
+    let jump = false, dx, dy;
+    if (val1 & 0x80) {
+      if ((val1 & 0x20) || (val1 & 0x10)) jump = true; // trim or jump = pen up
+      dx = signed12((val1 << 8) | val2); p += 2; val2 = v[p];
+    } else { dx = signed7(val1); p += 1; val2 = v[p]; }
+    if (val2 & 0x80) {
+      if ((val2 & 0x20) || (val2 & 0x10)) jump = true;
+      dy = signed12((val2 << 8) | v[p+1]); p += 2;
+    } else { dy = signed7(val2); p += 1; }
+    x += dx; y += dy;
+    stitches.push({ x, y, jump, colorChange:false });
+  }
+  return { stitches, colors };
+}
+function parseFile(name, buffer) {
+  const ext = name.split('.').pop().toLowerCase();
+  if (ext === 'dst') return parseDST(buffer);
+  if (ext === 'pes') return parsePES(buffer);
+  throw new Error('Unsupported: .' + ext);
+}
+
+// ---------------- RENDERING ----------------
+// Bounding box that ignores stray/miscoded outlier points, so a few bad
+// coordinates can't blow up the scale and squash the real design into a corner.
+function robustBounds(pts) {
+  const med = arr => { const s = [...arr].sort((a,b)=>a-b); const m = s.length>>1; return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
+  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+  const medX = med(xs), medY = med(ys);
+  const madX = med(xs.map(x=>Math.abs(x-medX))) || 1, madY = med(ys.map(y=>Math.abs(y-medY))) || 1;
+  const kx = 6*madX, ky = 6*madY;
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,kept=0;
+  for (const p of pts) {
+    if (Math.abs(p.x-medX) > kx || Math.abs(p.y-medY) > ky) continue;
+    if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; kept++;
+  }
+  if (kept === 0) { for (const p of pts){ if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; } }
+  return { minX, maxX, minY, maxY };
+}
+
+function renderToCanvas(canvas, design) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  const pts = design.stitches;
+  if (!pts.length) return { width: 0, height: 0, count: 0 };
+
+  const { minX, maxX, minY, maxY } = robustBounds(pts);
+  const spanX = Math.max(maxX-minX,1), spanY = Math.max(maxY-minY,1);
+  const pad = 12, scale = Math.min((W-2*pad)/spanX, (H-2*pad)/spanY);
+  const offX = pad + (W-2*pad-spanX*scale)/2, offY = pad + (H-2*pad-spanY*scale)/2;
+  const tx = x => offX + (x-minX)*scale, ty = y => offY + (y-minY)*scale;
+
+  // Any move longer than a quarter of the design is treated as a pen-up
+  // travel and not drawn, which also catches jumps the parser missed.
+  const jumpDist = Math.max(spanX, spanY) * 0.25;
+
+  // Real thread colours per block; fall back to charcoal for stitch-only
+  // formats (like DST) that carry no colour data.
+  const colors = (design.colors && design.colors.length) ? design.colors : ['#333333'];
+  let colorIdx = 0;
+  ctx.strokeStyle = colors[0]; ctx.lineWidth = 1; ctx.lineJoin = 'round';
+  let prev = null; ctx.beginPath();
+  for (const p of pts) {
+    if (p.colorChange) {
+      ctx.stroke();
+      colorIdx = Math.min(colorIdx + 1, colors.length - 1);
+      ctx.strokeStyle = colors[colorIdx];
+      ctx.beginPath(); prev = null; continue;
+    }
+    const cx = tx(p.x), cy = ty(p.y);
+    const isJump = p.jump || (prev && (Math.abs(p.x-prev.x) > jumpDist || Math.abs(p.y-prev.y) > jumpDist));
+    if (isJump || prev === null) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
+    prev = p;
+  }
+  ctx.stroke();
+  return { width: spanX, height: spanY, count: pts.length };
+}
+
+// ---------------- TREE MODEL ----------------
+let root = null, totalFiles = 0, currentPath = null;
+function newNode(name, path) { return { name, path, folders: new Map(), files: [] }; }
+function initRoot(rootName) { root = newNode(rootName || 'Designs', rootName || 'Designs'); totalFiles = 0; }
+function insertFile(fileRef) {
+  const parts = fileRef.path.split('/').filter(Boolean);
+  parts.pop(); // filename
+  // first segment is the root name; skip it when descending
+  let node = root, startIdx = (parts.length && parts[0] === root.name) ? 1 : 0;
+  let acc = root.path;
+  for (let i = startIdx; i < parts.length; i++) {
+    acc = acc + '/' + parts[i];
+    if (!node.folders.has(parts[i])) node.folders.set(parts[i], newNode(parts[i], acc));
+    node = node.folders.get(parts[i]);
+  }
+  node.files.push(fileRef);
+}
+function findNode(path) {
+  if (path === root.path) return root;
+  const parts = path.split('/').filter(Boolean);
+  let node = root, i = (parts.length && parts[0] === root.name) ? 1 : 0;
+  for (; i < parts.length; i++) { if (!node.folders.has(parts[i])) return node; node = node.folders.get(parts[i]); }
+  return node;
+}
+function countFilesDeep(node) { let n = node.files.length; for (const c of node.folders.values()) n += countFilesDeep(c); return n; }
+
+// ---------------- UI ----------------
+const grid = document.getElementById('grid');
+const dropZone = document.getElementById('drop');
+const dropWrap = document.getElementById('dropWrap');
+const statusEl = document.getElementById('status');
+const countEl = document.getElementById('count');
+const sidebar = document.getElementById('sidebar');
+const treeEl = document.getElementById('tree');
+const breadcrumb = document.getElementById('breadcrumb');
+const SUPPORTED = ['dst', 'pes'];
+function supported(name) { return SUPPORTED.includes(name.split('.').pop().toLowerCase()); }
+
+function buildTreeSidebar() { treeEl.innerHTML = ''; treeEl.appendChild(renderTreeNode(root, 0)); sidebar.style.display = 'block'; }
+function renderTreeNode(node, depth) {
+  const wrap = document.createElement('div'); wrap.className = 'tnode';
+  const row = document.createElement('div'); row.className = 'trow'; row.dataset.path = node.path;
+  const caret = document.createElement('span'); caret.className = 'caret';
+  const hasChildren = node.folders.size > 0;
+  if (!hasChildren) caret.classList.add('leaf');
+  caret.textContent = '▶';
+  const label = document.createElement('span'); label.textContent = node.name || 'Library';
+  const cnt = document.createElement('span'); cnt.className = 'tcount'; cnt.textContent = countFilesDeep(node);
+  row.appendChild(caret); row.appendChild(label); row.appendChild(cnt); wrap.appendChild(row);
+  const childrenWrap = document.createElement('div'); childrenWrap.className = 'tchildren';
+  const sorted = [...node.folders.values()].sort((a,b)=>a.name.localeCompare(b.name));
+  for (const child of sorted) childrenWrap.appendChild(renderTreeNode(child, depth+1));
+  wrap.appendChild(childrenWrap);
+  caret.addEventListener('click', e => { e.stopPropagation(); caret.classList.toggle('open'); childrenWrap.classList.toggle('open'); });
+  row.addEventListener('click', () => {
+    if (hasChildren && !childrenWrap.classList.contains('open')) { caret.classList.add('open'); childrenWrap.classList.add('open'); }
+    navigateTo(node.path);
+  });
+  if (depth === 0) { caret.classList.add('open'); childrenWrap.classList.add('open'); }
+  return wrap;
+}
+function setActiveTreeRow(path) { document.querySelectorAll('.trow').forEach(r => r.classList.toggle('active', r.dataset.path === path)); }
+function renderBreadcrumb(path) {
+  breadcrumb.style.display = 'block'; breadcrumb.innerHTML = '';
+  const parts = path.split('/').filter(Boolean); let acc = '';
+  parts.forEach((part, i) => {
+    if (i > 0) { const sep = document.createElement('span'); sep.textContent = '  ›  '; breadcrumb.appendChild(sep); }
+    const crumb = document.createElement('span'); crumb.className = 'crumb'; crumb.textContent = part;
+    acc = acc ? acc + '/' + part : part; const target = acc;
+    crumb.addEventListener('click', () => navigateTo(target));
+    breadcrumb.appendChild(crumb);
+  });
+}
+// Read a file's bytes but never hang forever on a stalled cloud file.
+function readWithTimeout(reader, ms) {
+  return Promise.race([
+    reader(),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
+  ]);
+}
+const READ_TIMEOUT_MS = 30000;
+
+let navGen = 0; // bumped on every navigation so stale loads can bail out
+
+function navigateTo(path) {
+  const gen = ++navGen;
+  currentPath = path;
+  const node = findNode(path);
+  setActiveTreeRow(path); renderBreadcrumb(path); grid.innerHTML = '';
+
+  // subfolder tiles first (instant, no file reads)
+  const sortedFolders = [...node.folders.values()].sort((a,b)=>a.name.localeCompare(b.name));
+  for (const child of sortedFolders) {
+    const fc = document.createElement('div'); fc.className = 'folder-card';
+    const ic = document.createElement('div'); ic.className='fic'; ic.textContent='📁';
+    const nm = document.createElement('div'); nm.className='fname'; nm.textContent=child.name;
+    const sb = document.createElement('div'); sb.className='fsub'; sb.textContent = countFilesDeep(child) + ' designs';
+    fc.appendChild(ic); fc.appendChild(nm); fc.appendChild(sb);
+    fc.addEventListener('click', () => navigateTo(child.path));
+    grid.appendChild(fc);
+  }
+
+  // design card shells (instant), then lazily read + render each
+  const sortedFiles = [...node.files].sort((a,b)=>a.name.localeCompare(b.name));
+  const pending = sortedFiles.map(makeDesignCardShell);
+  const fc2 = node.folders.size, fl = node.files.length;
+  statusEl.textContent = `${fc2 ? fc2 + ' folders · ' : ''}${fl} designs in this folder`;
+  fillCards(pending, gen);
+}
+
+// Builds an empty card with a "loading" canvas; the buffer is read later.
+function makeDesignCardShell(fileRef) {
+  const card = document.createElement('div'); card.className = 'card';
+  const canvas = document.createElement('canvas'); canvas.width = 320; canvas.height = 320; card.appendChild(canvas);
+  const meta = document.createElement('div'); meta.className = 'meta'; card.appendChild(meta);
+  const nameEl = document.createElement('div'); nameEl.className = 'name';
+  nameEl.textContent = fileRef.name; nameEl.title = fileRef.path; meta.appendChild(nameEl);
+  const subEl = document.createElement('div'); subEl.className = 'sub'; subEl.textContent = 'loading…'; meta.appendChild(subEl);
+
+  // placeholder while loading
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#c9c0b4'; ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('…', canvas.width/2, canvas.height/2);
+
+  const item = { fileRef, card, canvas, subEl, design: null, info: null };
+  card.appendChild(meta);
+  grid.appendChild(card);
+  card.addEventListener('click', () => openLightbox(fileRef.name, item.design, item.info, fileRef.path));
+  return item;
+}
+
+// Concurrency pool: read + render current-folder files a few at a time,
+// bailing out immediately if the user navigates elsewhere.
+async function fillCards(pending, gen) {
+  let idx = 0;
+  const CONCURRENCY = 4;
+  async function worker() {
+    while (idx < pending.length) {
+      if (gen !== navGen) return;
+      await loadOneCard(pending[idx++], gen);
+    }
+  }
+  const workers = [];
+  for (let i = 0; i < CONCURRENCY; i++) workers.push(worker());
+  await Promise.all(workers);
+}
+
+async function loadOneCard(item, gen) {
+  const { fileRef, card, canvas, subEl } = item;
+  try {
+    const buffer = await readWithTimeout(fileRef.read, READ_TIMEOUT_MS);
+    if (gen !== navGen) return; // user navigated away; drop the result
+    const design = parseFile(fileRef.name, buffer);
+    const info = renderToCanvas(canvas, design);
+    item.design = design; item.info = info;
+    subEl.textContent = `${(info.width/10).toFixed(0)} × ${(info.height/10).toFixed(0)} mm · ${info.count} stitches`;
+  } catch (e) {
+    if (gen !== navGen) return;
+    card.classList.add('broken');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = '#a5493a'; ctx.font = '15px sans-serif'; ctx.textAlign = 'center';
+    if (e.message === 'timeout') {
+      ctx.fillText('Cloud-only', canvas.width/2, canvas.height/2 - 8);
+      ctx.font = '12px sans-serif';
+      ctx.fillText('not downloaded', canvas.width/2, canvas.height/2 + 12);
+      subEl.textContent = 'Not downloaded — make available offline';
+    } else {
+      ctx.fillText("Can't preview", canvas.width/2, canvas.height/2);
+      subEl.textContent = fileRef.name.split('.').pop().toUpperCase() + ' · unreadable';
+    }
+  }
+}
+
+// ---------------- LOADING ----------------
+// Key idea: the scan collects file NAMES/PATHS and a lazy read() function
+// per file. It never reads file contents up front. Contents are read only
+// when you open the folder a file lives in. This keeps cloud-backed folders
+// (OneDrive/iCloud/Dropbox) from stalling, since we don't force every
+// placeholder file to download just to build the library.
+function finishLoading() {
+  dropWrap.style.display = 'none';
+  countEl.textContent = `${totalFiles} designs`;
+  buildTreeSidebar();
+  navigateTo(root.path);
+  statusEl.textContent = '';
+}
+
+async function loadDirectoryHandle(dirHandle) {
+  dropWrap.style.display = 'none'; statusEl.textContent = 'Scanning folder structure…';
+  initRoot(dirHandle.name);
+  async function walk(handle, prefix) {
+    for await (const entry of handle.values()) {
+      if (entry.kind === 'file' && supported(entry.name)) {
+        const fileEntry = entry;
+        insertFile({
+          name: fileEntry.name,
+          path: prefix + fileEntry.name,
+          read: async () => { const f = await fileEntry.getFile(); return f.arrayBuffer(); }
+        });
+        totalFiles++;
+        if (totalFiles % 200 === 0) { statusEl.textContent = `Scanning… found ${totalFiles} designs`; await new Promise(r=>setTimeout(r,0)); }
+      } else if (entry.kind === 'directory') {
+        await walk(entry, prefix + entry.name + '/');
+      }
+    }
+  }
+  await walk(dirHandle, dirHandle.name + '/');
+  finishLoading();
+}
+
+async function loadFiles(files) {
+  const list = Array.from(files).filter(f => supported(f.name));
+  if (!list.length) { statusEl.textContent = 'No .dst or .pes files found.'; return; }
+  dropWrap.style.display = 'none'; statusEl.textContent = 'Scanning folder structure…';
+  const first = list[0].webkitRelativePath || list[0].name;
+  const rootName = first.includes('/') ? first.split('/')[0] : 'Designs';
+  initRoot(rootName);
+  for (const f of list) {
+    const rel = f.webkitRelativePath || (rootName + '/' + f.name);
+    insertFile({ name: f.name, path: rel, read: () => f.arrayBuffer() });
+    totalFiles++;
+  }
+  finishLoading();
+}
+
+async function loadDrop(items) {
+  const roots = [];
+  for (const item of items) { const entry = item.webkitGetAsEntry && item.webkitGetAsEntry(); if (entry) roots.push(entry); }
+  if (!roots.length) return false;
+  dropWrap.style.display = 'none'; statusEl.textContent = 'Scanning folder structure…';
+  const rootName = (roots.length === 1 && roots[0].isDirectory) ? roots[0].name : 'Designs';
+  initRoot(rootName);
+  async function traverse(entry, prefix) {
+    if (entry.isFile) {
+      if (supported(entry.name)) {
+        const fileEntry = entry;
+        insertFile({
+          name: fileEntry.name,
+          path: prefix + fileEntry.name,
+          read: () => new Promise((res, rej) => fileEntry.file(f => f.arrayBuffer().then(res, rej), rej))
+        });
+        totalFiles++;
+        if (totalFiles % 200 === 0) { statusEl.textContent = `Scanning… found ${totalFiles} designs`; await new Promise(r=>setTimeout(r,0)); }
+      }
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const readBatch = () => new Promise(res => reader.readEntries(res));
+      let batch;
+      do { batch = await readBatch(); for (const en of batch) await traverse(en, prefix + entry.name + '/'); } while (batch.length > 0);
+    }
+  }
+  for (const r of roots) await traverse(r, '');
+  finishLoading();
+  return true;
+}
+
+document.getElementById('pickBtn').addEventListener('click', async () => {
+  if (window.showDirectoryPicker) { try { const dir = await window.showDirectoryPicker(); await loadDirectoryHandle(dir); } catch (e) {} }
+  else document.getElementById('fileInput').click();
+});
+document.getElementById('pickFilesBtn').addEventListener('click', () => document.getElementById('fileInputFlat').click());
+document.getElementById('fileInput').addEventListener('change', e => loadFiles(e.target.files));
+document.getElementById('fileInputFlat').addEventListener('change', e => loadFiles(e.target.files));
+
+['dragenter','dragover'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('hover'); }));
+dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove('hover'); });
+dropZone.addEventListener('drop', async e => {
+  e.preventDefault(); dropZone.classList.remove('hover');
+  const handled = await loadDrop(e.dataTransfer.items);
+  if (!handled) loadFiles(e.dataTransfer.files);
+});
+
+const lightbox = document.getElementById('lightbox');
+function openLightbox(name, design, info, path) {
+  const canvas = document.getElementById('lbCanvas');
+  if (design) renderToCanvas(canvas, design);
+  document.getElementById('lbName').textContent = name;
+  document.getElementById('lbSub').textContent =
+    info ? `${(info.width/10).toFixed(0)} × ${(info.height/10).toFixed(0)} mm · ${info.count} stitches · ${path||''}` : (path || '');
+  lightbox.classList.add('open');
+}
+lightbox.addEventListener('click', () => lightbox.classList.remove('open'));
+</script>
+</body>
+</html>
