@@ -1,17 +1,18 @@
 # Stitch Gallery
 
-A single-file, local-only embroidery library browser. No install, no
-server, no upload — open the HTML file in a browser and it renders
-your whole design folder as a scrollable, navigable gallery.
+Embroidery files contain the actual stitch design, but Windows and macOS show
+them as generic file icons — a folder of hundreds of `.dst` or `.pes` files
+gives you no way to see what's in it.
 
-## Why
-
-Embroidery files (`.dst`, `.pes`, and similar) don't preview natively
-on Windows or Mac, so a folder full of them just shows generic file
-icons. This reads the stitch data directly and draws a real preview
-for every design, organized the way your files already are on disk.
+Stitch Gallery reads the stitch data directly in your browser and turns that
+folder into a browsable visual gallery, organized the way your files already
+sit on disk: real stitch previews, real thread colors where available. No
+install, no server, no uploads — the HTML file runs on its own, and parsing
+happens in memory.
 
 ## Features
+
+**Browse your existing folders.**
 
 - **Folder tree navigation** — a sidebar mirrors your folder structure.
   Expand/collapse with the arrows, and each folder shows how many
@@ -19,6 +20,9 @@ for every design, organized the way your files already are on disk.
 - **Click-through browsing** — click a folder in the sidebar or a
   folder tile in the grid to open it. Breadcrumbs at the top let you
   jump back to any parent level instantly.
+
+**See real previews.**
+
 - **Real stitch-level previews** — draws the actual needle path, not a
   generic icon, including proper handling of jump/trim stitches so
   designs don't look like tangled scribble.
@@ -27,6 +31,9 @@ for every design, organized the way your files already are on disk.
   placeholder.
 - **Fast after the first load** — the folder structure is scanned once
   up front; browsing between folders afterward is instant.
+
+**Avoid uploads and installs.**
+
 - **Cloud-storage aware** — if a file lives in OneDrive/iCloud/Dropbox
   and hasn't downloaded yet, it's flagged as "cloud-only" instead of
   freezing the whole app.
