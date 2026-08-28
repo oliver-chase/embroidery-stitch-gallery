@@ -1,88 +1,79 @@
 # Stitch Gallery
 
-Embroidery files contain the actual stitch design, but Windows and macOS show
-them as generic file icons — a folder of hundreds of `.dst` or `.pes` files
-gives you no way to see what's in it.
+Embroidery files contain the actual stitch design, but your computer usually shows them as generic file icons. A folder with hundreds of `.dst` or `.pes` files gives you no way to see what each design looks like.
 
-Stitch Gallery reads the stitch data directly in your browser and turns that
-folder into a browsable visual gallery, organized the way your files already
-sit on disk: real stitch previews, real thread colors where available. No
-install, no server, no uploads — the HTML file runs on its own, and parsing
-happens in memory.
+**Stitch Gallery turns that folder into a visual gallery.** It reads the stitch data directly in your browser and shows real previews, organized using the same folder structure already on your computer.
 
-## Features
+There is nothing to install, no server to run, and no file upload. The entire application is one HTML file, and embroidery files are parsed in memory on your computer.
 
-**Browse your existing folders.**
+## What you can do
 
-- **Folder tree navigation** — a sidebar mirrors your folder structure.
-  Expand/collapse with the arrows, and each folder shows how many
-  designs are inside it (including subfolders).
-- **Click-through browsing** — click a folder in the sidebar or a
-  folder tile in the grid to open it. Breadcrumbs at the top let you
-  jump back to any parent level instantly.
+### Browse your existing folders
 
-**See real previews.**
+The sidebar mirrors your actual folder structure. Expand and collapse folders, see how many designs each contains, and move through the hierarchy without reorganizing your files.
 
-- **Real stitch-level previews** — draws the actual needle path, not a
-  generic icon, including proper handling of jump/trim stitches so
-  designs don't look like tangled scribble.
-- **True thread colors** — reads the color table embedded in `.pes`
-  files and renders each color block in its real color, not a
-  placeholder.
-- **Fast after the first load** — the folder structure is scanned once
-  up front; browsing between folders afterward is instant.
+Click a folder in the sidebar or a folder tile in the grid to open it. Breadcrumbs let you jump back to any parent folder.
 
-**Avoid uploads and installs.**
+### See the actual designs
 
-- **Cloud-storage aware** — if a file lives in OneDrive/iCloud/Dropbox
-  and hasn't downloaded yet, it's flagged as "cloud-only" instead of
-  freezing the whole app.
-- **100% local** — nothing is uploaded anywhere. All parsing and
-  rendering happens in your browser, in memory.
+Stitch Gallery draws the **real needle path** from each embroidery file instead of showing a generic icon.
+
+It handles jump and trim stitches so designs render as separate stitch paths instead of looking like tangled lines.
+
+For `.pes` files, it also reads the embedded thread colors and uses those colors in the preview. `.dst` files do not contain color information, so they render in neutral gray.
+
+### Keep everything local
+
+Nothing is uploaded anywhere. Stitch data is read and rendered in your browser, in memory.
+
+Stitch Gallery also handles cloud-backed folders. If a file in OneDrive, iCloud, or Dropbox has not been downloaded to your computer, it is marked **cloud-only** instead of causing the gallery to freeze.
+
+The folder structure is scanned once when you open it, so moving between folders afterward is fast.
+
+---
 
 ## Usage
 
 1. Download `stitch-gallery.html`.
-2. Open it in Chrome or Edge (best support for folder access).
-3. Click **Choose Folder…** and select your top-level embroidery
-   folder, or just drag the folder onto the page.
-4. Browse the sidebar tree or click folder tiles in the grid to
-   navigate. Click any design to see a larger preview.
+2. Open it in **Chrome or Edge**, which have the best folder support.
+3. Click **Choose Folder…** and select your top-level embroidery folder, or drag the folder onto the page.
+4. Browse the folder tree or folder tiles. Click a design to see a larger preview.
 
-If your files are in cloud storage, make the folder available
-offline first (e.g. OneDrive: right-click → "Always keep on this
-device") for the fastest, most complete previews.
+If your embroidery files are stored in the cloud, make the folder available offline first. For example, in OneDrive, right-click the folder and choose **Always keep on this device**.
+
+---
 
 ## Supported formats
 
-- `.dst` (Tajima) — universal commercial format, stitch data only, no
-  embedded colors.
-- `.pes` (Brother / Babylock) — includes embedded thread colors, read
-  from the standard PEC thread palette.
+| Format | Support                                                                                                                      |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `.dst` | Tajima commercial format. Stitch data is supported; the format does not contain thread colors, so previews use neutral gray. |
+| `.pes` | Brother / Babylock format. Embedded thread colors are read from the standard PEC thread palette.                             |
 
-Other formats (`.jef`, `.vp3`, `.exp`, etc.) aren't parsed yet. Files
-in unsupported formats will still appear in the browser but show a
-"can't preview" placeholder.
+Other formats, including `.jef`, `.vp3`, and `.exp`, are not parsed yet.
+
+Unsupported files still appear in the gallery, but show a **can't preview** placeholder.
+
+---
 
 ## How it works
 
-Everything lives in one HTML file with inline CSS and JavaScript:
+Everything runs from a single HTML file with inline CSS and JavaScript. There is no server, build process, or external library.
 
-- A hand-written binary parser reads the DST and PEC/PES stitch
-  formats directly (no libraries, no build step).
-- A folder tree model groups files by their real path structure.
-- Folder scanning uses the File System Access API (or a drag-and-drop
-  fallback) to read file names without downloading file contents —
-  actual stitch data is only read when you open the folder a design
-  lives in, which is what keeps cloud-backed folders from stalling.
-- Stitch paths are drawn to an HTML canvas per design, scaled to fit
-  and colored using the design's real thread palette where available.
+* A hand-written binary parser reads DST and PEC/PES stitch data directly.
+* A folder-tree model preserves the real folder structure.
+* The File System Access API reads folder and file names without immediately reading every file's contents. Stitch data is read only when needed, which prevents cloud-backed folders from stalling during the initial scan.
+* Each design is drawn to an HTML canvas, scaled to fit the preview, and colored using its embedded thread palette when one is available.
+* Drag-and-drop provides a fallback when live folder access is unavailable.
+
+---
 
 ## Known limits
 
-- Only reads `.dst` and `.pes`.
-- Color data requires a `.pes` file with an embedded color table; DST
-  designs render in a neutral gray since the format has no color data.
-- Folder picking works best in Chromium-based browsers (Chrome, Edge).
-  Firefox and Safari fall back to a flat file picker without live
-  folder-tree access.
+* Only `.dst` and `.pes` files are currently parsed.
+* Thread colors require a `.pes` file with an embedded color table.
+* `.dst` designs render in neutral gray because DST contains no color data.
+* Folder selection works best in Chromium-based browsers such as Chrome and Edge.
+* Firefox and Safari fall back to a standard file picker and do not provide the same live folder-tree access.
+
+The result is a simple workflow: **point Stitch Gallery at an existing embroidery folder, and immediately see the designs inside it without changing, uploading, or reorganizing your files.**
