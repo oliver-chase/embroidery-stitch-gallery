@@ -17,6 +17,12 @@
     display: flex; align-items: center; gap: 14px; flex: 0 0 auto; }
   header h1 { font-size: 17px; margin: 0; font-weight: 600; letter-spacing: 0.3px; }
   header .count { color: var(--muted); font-size: 13px; margin-left: auto; }
+  #search { font: inherit; font-size: 13px; padding: 7px 12px; width: 260px; max-width: 40vw;
+    border: 1px solid var(--border); border-radius: 6px; background: var(--fabric); color: var(--ink); }
+  #search:focus { outline: none; border-color: var(--accent); }
+  .card .path { color: var(--accent); font-size: 11px; margin-top: 2px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .card .path:hover { text-decoration: underline; }
   button { font: inherit; padding: 7px 14px; border: 1px solid var(--accent);
     background: var(--accent); color: #fff; border-radius: 6px; cursor: pointer; }
   button.secondary { background: transparent; color: var(--accent); }
@@ -86,6 +92,7 @@
   <h1>Stitch Gallery</h1>
   <button id="pickBtn">Choose Folder…</button>
   <button id="pickFilesBtn" class="secondary">Or pick files</button>
+  <input id="search" type="search" placeholder="Search designs…  ( / )" aria-label="Search designs by file name" autocomplete="off" style="display:none">
   <span class="count" id="count"></span>
 </header>
 
@@ -261,9 +268,9 @@ function renderToCanvas(canvas, design) {
 }
 
 // ---------------- TREE MODEL ----------------
-let root = null, totalFiles = 0, currentPath = null;
+let root = null, totalFiles = 0, currentPath = null, allFiles = [];
 function newNode(name, path) { return { name, path, folders: new Map(), files: [] }; }
-function initRoot(rootName) { root = newNode(rootName || 'Designs', rootName || 'Designs'); totalFiles = 0; }
+function initRoot(rootName) { root = newNode(rootName || 'Designs', rootName || 'Designs'); totalFiles = 0; allFiles = []; }
 function insertFile(fileRef) {
   const parts = fileRef.path.split('/').filter(Boolean);
   parts.pop(); // filename
@@ -276,6 +283,7 @@ function insertFile(fileRef) {
     node = node.folders.get(parts[i]);
   }
   node.files.push(fileRef);
+  allFiles.push(fileRef);
 }
 function findNode(path) {
   if (path === root.path) return root;
@@ -352,6 +360,7 @@ const CONCURRENCY = 4;
 let nav = null;                      // { gen, queue, active, observer } for the current view
 
 function navigateTo(path) {
+  searchEl.value = '';
   currentPath = path;
   const node = findNode(path);
   setActiveTreeRow(path); renderBreadcrumb(path);
@@ -362,7 +371,7 @@ function navigateTo(path) {
 }
 
 // Draws folder tiles, then design cards that fill in lazily.
-function showGrid(folders, files, statusText) {
+function showGrid(folders, files, statusText, showPath) {
   const gen = ++navGen;
   if (nav) nav.observer.disconnect();
   grid.innerHTML = '';
@@ -392,16 +401,22 @@ function showGrid(folders, files, statusText) {
     fc.addEventListener('click', () => navigateTo(child.path));
     grid.appendChild(fc);
   }
-  for (const fileRef of files) cur.observer.observe(makeDesignCardShell(fileRef).card);
+  for (const fileRef of files) cur.observer.observe(makeDesignCardShell(fileRef, showPath).card);
   statusEl.textContent = statusText;
 }
 
-function makeDesignCardShell(fileRef) {
+function makeDesignCardShell(fileRef, showPath) {
   const card = document.createElement('div'); card.className = 'card';
   const canvas = document.createElement('canvas'); canvas.width = 0; card.appendChild(canvas);
   const meta = document.createElement('div'); meta.className = 'meta'; card.appendChild(meta);
   const nameEl = document.createElement('div'); nameEl.className = 'name';
   nameEl.textContent = fileRef.name; nameEl.title = fileRef.path; meta.appendChild(nameEl);
+  if (showPath) {
+    const dir = fileRef.path.split('/').slice(0, -1).join('/');
+    const pathEl = document.createElement('div'); pathEl.className = 'path'; pathEl.textContent = dir; pathEl.title = 'Open ' + dir;
+    pathEl.addEventListener('click', e => { e.stopPropagation(); navigateTo(dir); });
+    meta.appendChild(pathEl);
+  }
   const subEl = document.createElement('div'); subEl.className = 'sub'; subEl.textContent = 'loading…'; meta.appendChild(subEl);
 
   const item = { fileRef, card, canvas, subEl, info: null, state: 'idle' };
@@ -454,6 +469,30 @@ async function renderCard(item, cur) {
   }
 }
 
+// ---------------- SEARCH ----------------
+// Matches on file names from the tree built at load time, so searching never
+// reads a file. Every word in the query must appear in the name or folder path.
+const searchEl = document.getElementById('search');
+let searchTimer = 0;
+function runSearch() {
+  const words = searchEl.value.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) { navigateTo(currentPath); return; }
+  const hits = allFiles.filter(f => { const hay = f.path.toLowerCase(); return words.every(w => hay.includes(w)); })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  setActiveTreeRow(null);
+  breadcrumb.style.display = 'block'; breadcrumb.textContent = 'Search results';
+  showGrid([], hits, `${hits.length} of ${allFiles.length} designs match "${searchEl.value.trim()}"`, true);
+}
+searchEl.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 120); });
+searchEl.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { clearTimeout(searchTimer); searchEl.value = ''; searchEl.blur(); navigateTo(currentPath); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && searchEl.style.display !== 'none' && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) {
+    e.preventDefault(); searchEl.focus();
+  }
+});
+
 // ---------------- LOADING ----------------
 // Key idea: the scan collects file NAMES/PATHS and a lazy read() function
 // per file. It never reads file contents up front. Contents are read only
@@ -462,6 +501,7 @@ async function renderCard(item, cur) {
 // placeholder file to download just to build the library.
 function finishLoading() {
   dropWrap.style.display = 'none';
+  searchEl.style.display = ''; searchEl.value = '';
   countEl.textContent = `${totalFiles} designs`;
   buildTreeSidebar();
   navigateTo(root.path);
