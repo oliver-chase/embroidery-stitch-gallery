@@ -17,6 +17,7 @@
     display: flex; align-items: center; gap: 14px; flex: 0 0 auto; }
   header h1 { font-size: 17px; margin: 0; font-weight: 600; letter-spacing: 0.3px; }
   header .count { color: var(--muted); font-size: 13px; margin-left: auto; }
+  #clearCacheBtn { font-size: 12px; padding: 5px 10px; }
   #search { font: inherit; font-size: 13px; padding: 7px 12px; width: 260px; max-width: 40vw;
     border: 1px solid var(--border); border-radius: 6px; background: var(--fabric); color: var(--ink); }
   #search:focus { outline: none; border-color: var(--accent); }
@@ -93,6 +94,7 @@
   <button id="pickBtn">Choose Folder…</button>
   <button id="pickFilesBtn" class="secondary">Or pick files</button>
   <input id="search" type="search" placeholder="Search designs…  ( / )" aria-label="Search designs by file name" autocomplete="off" style="display:none">
+  <button id="clearCacheBtn" class="secondary" style="display:none" title="Forget cached thumbnails and the remembered folder">Clear cache</button>
   <span class="count" id="count"></span>
 </header>
 
@@ -106,6 +108,7 @@
       <div id="drop">
         <h2>Drag your embroidery folder here</h2>
         <p>Or click "Choose Folder…" above. Everything stays on your computer &mdash; nothing is uploaded.</p>
+        <div id="reopen" style="display:none; margin: 14px 0"><button id="reopenBtn"></button></div>
         <p style="font-size:12px">Reads .dst and .pes files (the two most common formats).</p>
         <p style="font-size:12px; color:#a5493a">Using OneDrive / iCloud / Dropbox? Make the folder available offline first for best speed.</p>
       </div>
@@ -443,11 +446,27 @@ function infoText(info) {
 async function renderCard(item, cur) {
   const { fileRef, card, canvas, subEl } = item;
   try {
-    const buffer = await readWithTimeout(fileRef.read, READ_TIMEOUT_MS);
-    if (cur.gen !== navGen || item.state !== 'queued') { if (item.state === 'queued') item.state = 'idle'; return; }
-    const design = parseFile(fileRef.name, buffer);
-    canvas.width = CARD_W; canvas.height = CARD_H;
-    item.info = renderToCanvas(canvas, design);
+    // size + modified time are available without downloading a cloud file
+    const m = await readWithTimeout(fileRef.meta, READ_TIMEOUT_MS);
+    const key = `${CACHE_VERSION}|${fileRef.path}|${m.size}|${m.mtime}`;
+    const hit = await cacheGet(key);
+    const stale = () => cur.gen !== navGen || item.state !== 'queued';
+    if (stale()) { if (item.state === 'queued') item.state = 'idle'; return; }
+    if (hit) {
+      const bmp = await createImageBitmap(hit.blob);
+      if (stale()) { bmp.close(); if (item.state === 'queued') item.state = 'idle'; return; }
+      canvas.width = CARD_W; canvas.height = CARD_H;
+      canvas.getContext('2d').drawImage(bmp, 0, 0); bmp.close();
+      item.info = hit.info;
+    } else {
+      const buffer = await readWithTimeout(fileRef.read, READ_TIMEOUT_MS);
+      if (stale()) { if (item.state === 'queued') item.state = 'idle'; return; }
+      const design = parseFile(fileRef.name, buffer);
+      canvas.width = CARD_W; canvas.height = CARD_H;
+      item.info = renderToCanvas(canvas, design);
+      const info = item.info;
+      canvas.toBlob(blob => { if (blob) cachePut(key, { blob, info }); }, 'image/webp', 0.85);
+    }
     item.state = 'done';
     subEl.textContent = infoText(item.info);
   } catch (e) {
@@ -468,6 +487,62 @@ async function renderCard(item, cur) {
     }
   }
 }
+
+// ---------------- CACHE ----------------
+// IndexedDB holds the last folder handle and one small thumbnail plus size info
+// per design, keyed by path + size + modified time, so reopening a library
+// paints from the cache without reading any file. Every call fails soft: in a
+// private window or an unsupported browser the gallery simply works uncached.
+// Bump CACHE_VERSION when the parsers or the card renderer change.
+const CACHE_VERSION = 1;
+let dbPromise = null;
+function openDb() {
+  if (!dbPromise) dbPromise = new Promise(res => {
+    try {
+      const rq = indexedDB.open('stitch-gallery', 1);
+      rq.onupgradeneeded = () => { rq.result.createObjectStore('thumbs'); rq.result.createObjectStore('handles'); };
+      rq.onsuccess = () => res(rq.result);
+      rq.onerror = rq.onblocked = () => res(null);
+    } catch (e) { res(null); }
+  });
+  return dbPromise;
+}
+async function idb(store, mode, fn) {
+  const db = await openDb(); if (!db) return null;
+  return new Promise(res => {
+    try {
+      const tx = db.transaction(store, mode), rq = fn(tx.objectStore(store));
+      tx.oncomplete = () => res(rq ? rq.result : null);
+      tx.onerror = tx.onabort = () => res(null);
+    } catch (e) { res(null); }
+  });
+}
+const cacheGet = key => idb('thumbs', 'readonly', st => st.get(key));
+const cachePut = (key, val) => idb('thumbs', 'readwrite', st => st.put(val, key));
+
+const reopenWrap = document.getElementById('reopen'), reopenBtn = document.getElementById('reopenBtn');
+const clearCacheBtn = document.getElementById('clearCacheBtn');
+async function offerReopen() {
+  const saved = await idb('handles', 'readonly', st => st.get('last'));
+  if (!saved || !saved.handle) return;
+  reopenBtn.textContent = `Reopen “${saved.handle.name}”`;
+  reopenWrap.style.display = '';
+  reopenBtn.onclick = async () => {
+    try {
+      let perm = await saved.handle.queryPermission({ mode: 'read' });
+      if (perm !== 'granted') perm = await saved.handle.requestPermission({ mode: 'read' });
+      if (perm !== 'granted') { statusEl.textContent = 'Permission to read that folder was not granted.'; return; }
+      await loadDirectoryHandle(saved.handle);
+    } catch (e) { statusEl.textContent = 'Could not reopen that folder. Choose it again.'; }
+  };
+}
+clearCacheBtn.addEventListener('click', async () => {
+  await idb('thumbs', 'readwrite', st => st.clear());
+  await idb('handles', 'readwrite', st => st.clear());
+  reopenWrap.style.display = 'none';
+  statusEl.textContent = 'Cache cleared. Thumbnails rebuild as you browse.';
+});
+offerReopen();
 
 // ---------------- SEARCH ----------------
 // Matches on file names from the tree built at load time, so searching never
@@ -501,7 +576,7 @@ document.addEventListener('keydown', e => {
 // placeholder file to download just to build the library.
 function finishLoading() {
   dropWrap.style.display = 'none';
-  searchEl.style.display = ''; searchEl.value = '';
+  searchEl.style.display = ''; searchEl.value = ''; clearCacheBtn.style.display = '';
   countEl.textContent = `${totalFiles} designs`;
   buildTreeSidebar();
   navigateTo(root.path);
@@ -518,7 +593,8 @@ async function loadDirectoryHandle(dirHandle) {
         insertFile({
           name: fileEntry.name,
           path: prefix + fileEntry.name,
-          read: async () => { const f = await fileEntry.getFile(); return f.arrayBuffer(); }
+          read: async () => { const f = await fileEntry.getFile(); return f.arrayBuffer(); },
+          meta: async () => { const f = await fileEntry.getFile(); return { size: f.size, mtime: f.lastModified }; }
         });
         totalFiles++;
         if (totalFiles % 200 === 0) { statusEl.textContent = `Scanning… found ${totalFiles} designs`; await new Promise(r=>setTimeout(r,0)); }
@@ -540,7 +616,7 @@ async function loadFiles(files) {
   initRoot(rootName);
   for (const f of list) {
     const rel = f.webkitRelativePath || (rootName + '/' + f.name);
-    insertFile({ name: f.name, path: rel, read: () => f.arrayBuffer() });
+    insertFile({ name: f.name, path: rel, read: () => f.arrayBuffer(), meta: async () => ({ size: f.size, mtime: f.lastModified }) });
     totalFiles++;
   }
   finishLoading();
@@ -560,7 +636,8 @@ async function loadDrop(items) {
         insertFile({
           name: fileEntry.name,
           path: prefix + fileEntry.name,
-          read: () => new Promise((res, rej) => fileEntry.file(f => f.arrayBuffer().then(res, rej), rej))
+          read: () => new Promise((res, rej) => fileEntry.file(f => f.arrayBuffer().then(res, rej), rej)),
+          meta: () => new Promise((res, rej) => fileEntry.file(f => res({ size: f.size, mtime: f.lastModified }), rej))
         });
         totalFiles++;
         if (totalFiles % 200 === 0) { statusEl.textContent = `Scanning… found ${totalFiles} designs`; await new Promise(r=>setTimeout(r,0)); }
@@ -578,7 +655,7 @@ async function loadDrop(items) {
 }
 
 document.getElementById('pickBtn').addEventListener('click', async () => {
-  if (window.showDirectoryPicker) { try { const dir = await window.showDirectoryPicker(); await loadDirectoryHandle(dir); } catch (e) {} }
+  if (window.showDirectoryPicker) { try { const dir = await window.showDirectoryPicker(); idb('handles', 'readwrite', st => st.put({ handle: dir }, 'last')); await loadDirectoryHandle(dir); } catch (e) {} }
   else document.getElementById('fileInput').click();
 });
 document.getElementById('pickFilesBtn').addEventListener('click', () => document.getElementById('fileInputFlat').click());
