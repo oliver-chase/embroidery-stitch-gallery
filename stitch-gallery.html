@@ -49,7 +49,7 @@
   .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
     overflow: hidden; cursor: pointer; transition: transform 0.08s, box-shadow 0.08s; }
   .card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
-  .card canvas { display: block; width: 100%; height: 160px; background: var(--fabric); }
+  .card canvas { display: block; width: 100%; height: auto; aspect-ratio: 5 / 4; background: var(--fabric); }
   .card .meta { padding: 8px 10px; font-size: 12px; }
   .card .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
   .card .sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
@@ -204,7 +204,11 @@ function parseFile(name, buffer) {
 // coordinates can't blow up the scale and squash the real design into a corner.
 function robustBounds(pts) {
   const med = arr => { const s = [...arr].sort((a,b)=>a-b); const m = s.length>>1; return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
-  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+  // Median and spread come from at most ~2,000 evenly spaced points; the
+  // full pass below still checks every stitch against the resulting limits.
+  const step = Math.max(1, Math.floor(pts.length / 2000));
+  const sample = step === 1 ? pts : pts.filter((_, i) => i % step === 0);
+  const xs = sample.map(p=>p.x), ys = sample.map(p=>p.y);
   const medX = med(xs), medY = med(ys);
   const madX = med(xs.map(x=>Math.abs(x-medX))) || 1, madY = med(ys.map(y=>Math.abs(y-medY))) || 1;
   const kx = 6*madX, ky = 6*madY;
@@ -340,15 +344,46 @@ const READ_TIMEOUT_MS = 30000;
 
 let navGen = 0; // bumped on every navigation so stale loads can bail out
 
+// Cards render only while they are near the viewport. A folder of 1,000 designs
+// would otherwise hold 1,000 canvases and parse files nobody scrolled to.
+// Cards that scroll far away release their canvas and re-render on return.
+const CARD_W = 400, CARD_H = 320;   // backing store: sharp at 2x on a ~200px card
+const CONCURRENCY = 4;
+let nav = null;                      // { gen, queue, active, observer } for the current view
+
 function navigateTo(path) {
-  const gen = ++navGen;
   currentPath = path;
   const node = findNode(path);
-  setActiveTreeRow(path); renderBreadcrumb(path); grid.innerHTML = '';
+  setActiveTreeRow(path); renderBreadcrumb(path);
+  const folders = [...node.folders.values()].sort((a,b)=>a.name.localeCompare(b.name));
+  const files = [...node.files].sort((a,b)=>a.name.localeCompare(b.name));
+  showGrid(folders, files,
+    `${folders.length ? folders.length + ' folders · ' : ''}${files.length} designs in this folder`);
+}
 
-  // subfolder tiles first (instant, no file reads)
-  const sortedFolders = [...node.folders.values()].sort((a,b)=>a.name.localeCompare(b.name));
-  for (const child of sortedFolders) {
+// Draws folder tiles, then design cards that fill in lazily.
+function showGrid(folders, files, statusText) {
+  const gen = ++navGen;
+  if (nav) nav.observer.disconnect();
+  grid.innerHTML = '';
+  nav = { gen, queue: [], active: 0, observer: null };
+  const cur = nav;
+  cur.observer = new IntersectionObserver(entries => {
+    for (const en of entries) {
+      const item = en.target._item;
+      if (en.isIntersecting) {
+        if (item.state === 'idle') { item.state = 'queued'; cur.queue.push(item); }
+      } else if (item.state === 'done') {
+        item.canvas.width = 0;          // frees the backing store
+        item.state = 'idle';
+      } else if (item.state === 'queued') {
+        item.state = 'idle';
+      }
+    }
+    pump(cur);
+  }, { root: document.getElementById('content'), rootMargin: '1200px 0px' });
+
+  for (const child of folders) {
     const fc = document.createElement('div'); fc.className = 'folder-card';
     const ic = document.createElement('div'); ic.className='fic'; ic.textContent='📁';
     const nm = document.createElement('div'); nm.className='fname'; nm.textContent=child.name;
@@ -357,74 +392,63 @@ function navigateTo(path) {
     fc.addEventListener('click', () => navigateTo(child.path));
     grid.appendChild(fc);
   }
-
-  // design card shells (instant), then lazily read + render each
-  const sortedFiles = [...node.files].sort((a,b)=>a.name.localeCompare(b.name));
-  const pending = sortedFiles.map(makeDesignCardShell);
-  const fc2 = node.folders.size, fl = node.files.length;
-  statusEl.textContent = `${fc2 ? fc2 + ' folders · ' : ''}${fl} designs in this folder`;
-  fillCards(pending, gen);
+  for (const fileRef of files) cur.observer.observe(makeDesignCardShell(fileRef).card);
+  statusEl.textContent = statusText;
 }
 
-// Builds an empty card with a "loading" canvas; the buffer is read later.
 function makeDesignCardShell(fileRef) {
   const card = document.createElement('div'); card.className = 'card';
-  const canvas = document.createElement('canvas'); canvas.width = 320; canvas.height = 320; card.appendChild(canvas);
+  const canvas = document.createElement('canvas'); canvas.width = 0; card.appendChild(canvas);
   const meta = document.createElement('div'); meta.className = 'meta'; card.appendChild(meta);
   const nameEl = document.createElement('div'); nameEl.className = 'name';
   nameEl.textContent = fileRef.name; nameEl.title = fileRef.path; meta.appendChild(nameEl);
   const subEl = document.createElement('div'); subEl.className = 'sub'; subEl.textContent = 'loading…'; meta.appendChild(subEl);
 
-  // placeholder while loading
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#c9c0b4'; ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('…', canvas.width/2, canvas.height/2);
-
-  const item = { fileRef, card, canvas, subEl, design: null, info: null };
-  card.appendChild(meta);
+  const item = { fileRef, card, canvas, subEl, info: null, state: 'idle' };
+  card._item = item;
   grid.appendChild(card);
-  card.addEventListener('click', () => openLightbox(fileRef.name, item.design, item.info, fileRef.path));
+  card.addEventListener('click', () => openLightbox(item));
   return item;
 }
 
-// Concurrency pool: read + render current-folder files a few at a time,
-// bailing out immediately if the user navigates elsewhere.
-async function fillCards(pending, gen) {
-  let idx = 0;
-  const CONCURRENCY = 4;
-  async function worker() {
-    while (idx < pending.length) {
-      if (gen !== navGen) return;
-      await loadOneCard(pending[idx++], gen);
-    }
+// Runs up to CONCURRENCY renders at once for the current view only.
+function pump(cur) {
+  while (cur.active < CONCURRENCY && cur.queue.length) {
+    const item = cur.queue.shift();
+    if (item.state !== 'queued') continue;
+    cur.active++;
+    renderCard(item, cur).finally(() => { cur.active--; pump(cur); });
   }
-  const workers = [];
-  for (let i = 0; i < CONCURRENCY; i++) workers.push(worker());
-  await Promise.all(workers);
 }
 
-async function loadOneCard(item, gen) {
+function infoText(info) {
+  return `${(info.width/10).toFixed(0)} × ${(info.height/10).toFixed(0)} mm · ${info.count} stitches`;
+}
+
+async function renderCard(item, cur) {
   const { fileRef, card, canvas, subEl } = item;
   try {
     const buffer = await readWithTimeout(fileRef.read, READ_TIMEOUT_MS);
-    if (gen !== navGen) return; // user navigated away; drop the result
+    if (cur.gen !== navGen || item.state !== 'queued') { if (item.state === 'queued') item.state = 'idle'; return; }
     const design = parseFile(fileRef.name, buffer);
-    const info = renderToCanvas(canvas, design);
-    item.design = design; item.info = info;
-    subEl.textContent = `${(info.width/10).toFixed(0)} × ${(info.height/10).toFixed(0)} mm · ${info.count} stitches`;
+    canvas.width = CARD_W; canvas.height = CARD_H;
+    item.info = renderToCanvas(canvas, design);
+    item.state = 'done';
+    subEl.textContent = infoText(item.info);
   } catch (e) {
-    if (gen !== navGen) return;
+    if (cur.gen !== navGen) return;
+    item.state = 'failed';
     card.classList.add('broken');
+    canvas.width = CARD_W; canvas.height = CARD_H;
     const ctx = canvas.getContext('2d');
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle = '#a5493a'; ctx.font = '15px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#a5493a'; ctx.font = '22px sans-serif'; ctx.textAlign = 'center';
     if (e.message === 'timeout') {
-      ctx.fillText('Cloud-only', canvas.width/2, canvas.height/2 - 8);
-      ctx.font = '12px sans-serif';
-      ctx.fillText('not downloaded', canvas.width/2, canvas.height/2 + 12);
+      ctx.fillText('Cloud-only', CARD_W/2, CARD_H/2 - 8);
+      ctx.font = '16px sans-serif';
+      ctx.fillText('not downloaded', CARD_W/2, CARD_H/2 + 18);
       subEl.textContent = 'Not downloaded — make available offline';
     } else {
-      ctx.fillText("Can't preview", canvas.width/2, canvas.height/2);
+      ctx.fillText("Can't preview", CARD_W/2, CARD_H/2);
       subEl.textContent = fileRef.name.split('.').pop().toUpperCase() + ' · unreadable';
     }
   }
@@ -530,15 +554,24 @@ dropZone.addEventListener('drop', async e => {
 });
 
 const lightbox = document.getElementById('lightbox');
-function openLightbox(name, design, info, path) {
+let lbToken = 0;
+async function openLightbox(item) {
+  const { fileRef } = item, token = ++lbToken;
   const canvas = document.getElementById('lbCanvas');
-  if (design) renderToCanvas(canvas, design);
-  document.getElementById('lbName').textContent = name;
-  document.getElementById('lbSub').textContent =
-    info ? `${(info.width/10).toFixed(0)} × ${(info.height/10).toFixed(0)} mm · ${info.count} stitches · ${path||''}` : (path || '');
+  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  document.getElementById('lbName').textContent = fileRef.name;
+  document.getElementById('lbSub').textContent = 'loading…';
   lightbox.classList.add('open');
+  try {
+    const design = parseFile(fileRef.name, await readWithTimeout(fileRef.read, READ_TIMEOUT_MS));
+    if (token !== lbToken) return;
+    const info = renderToCanvas(canvas, design);
+    document.getElementById('lbSub').textContent = `${infoText(info)} · ${fileRef.path}`;
+  } catch (e) {
+    if (token === lbToken) document.getElementById('lbSub').textContent = `Can't preview · ${fileRef.path}`;
+  }
 }
-lightbox.addEventListener('click', () => lightbox.classList.remove('open'));
+lightbox.addEventListener('click', () => { lbToken++; lightbox.classList.remove('open'); });
 </script>
 </body>
 </html>
