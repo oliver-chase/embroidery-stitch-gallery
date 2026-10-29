@@ -22,6 +22,16 @@ It handles jump and trim stitches so designs render as separate stitch paths ins
 
 For `.pes` files, it also reads the embedded thread colors and uses those colors in the preview. `.dst` files do not contain color information, so they render in neutral gray.
 
+### Find a design fast
+
+Type in the search box (or press `/`) to search every folder at once. Every word you type must appear in the file name or its folder path. Each result shows its folder, and clicking the folder opens it. Press `Esc` to clear the search.
+
+### Pick up where you left off
+
+In Chrome and Edge, the gallery remembers the last folder you opened. Next time, click **Reopen** on the start screen and approve read access.
+
+Each design's thumbnail and size are cached in your browser, so a folder you have already viewed appears without reading any files. The cache lives in your browser only. **Clear cache** in the header removes it and the remembered folder.
+
 ### Keep everything local
 
 Nothing is uploaded anywhere. Stitch data is read and rendered in your browser, in memory.
@@ -64,6 +74,7 @@ Everything runs from a single HTML file with inline CSS and JavaScript. There is
 * A folder-tree model preserves the real folder structure.
 * The File System Access API reads folder and file names without immediately reading every file's contents. Stitch data is read only when needed, which prevents cloud-backed folders from stalling during the initial scan.
 * Each design is drawn to an HTML canvas, scaled to fit the preview, and colored using its embedded thread palette when one is available.
+* Cards render only near the visible part of the page. Cards that scroll far away release their canvas, so a folder of thousands of designs stays light.
 * Drag-and-drop provides a fallback when live folder access is unavailable.
 
 ---
