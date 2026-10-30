@@ -6,8 +6,8 @@
 <title>Stitch Gallery</title>
 <style>
   :root {
-    --bg: #fbf2f4; --panel: #ffffff; --ink: #2b2b2b; --muted: #8f7d84;
-    --accent: #b4506c; --accent-fill: #f5bccb; --accent-soft: #fce8ee; --border: #efd9df; --fabric: #fffafb;
+    --bg: #fff7fc; --panel: #ffffff; --ink: #2b2b2b; --muted: #8c7a88;
+    --accent: #a63d8a; --accent-fill: #ffd6f3; --accent-soft: #fff0fa; --border: #f3dcec; --fabric: #fffafe;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -25,8 +25,9 @@
     overflow: hidden; text-overflow: ellipsis; }
   .card .path:hover { text-decoration: underline; }
   button { font: inherit; padding: 7px 14px; border: 1px solid var(--accent-fill);
-    background: var(--accent-fill); color: #5a2a38; border-radius: 6px; cursor: pointer; }
-  button:hover { background: #f1a9bd; border-color: #f1a9bd; }
+    background: var(--accent-fill); color: #5a1f4c; border-radius: 6px; cursor: pointer; }
+  input[type=range], input[type=checkbox] { accent-color: var(--accent); }
+  button:hover { background: #ffc2ec; border-color: #ffc2ec; }
   button.secondary { background: transparent; color: var(--accent); border-color: var(--accent); }
   button.secondary:hover { background: var(--accent-soft); }
 
@@ -38,7 +39,7 @@
   .tnode { user-select: none; }
   .trow { display: flex; align-items: center; gap: 4px; padding: 5px 8px; border-radius: 6px;
     cursor: pointer; font-size: 13px; white-space: nowrap; }
-  .trow:hover { background: #fdf0f4; }
+  .trow:hover { background: #fdeaf7; }
   .trow.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
   .caret { width: 14px; text-align: center; color: var(--muted); transition: transform 0.1s; font-size: 10px; }
   .caret.open { transform: rotate(90deg); }
@@ -62,7 +63,7 @@
   .card .meta { padding: 8px 10px; font-size: 12px; }
   .card .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
   .card .sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
-  .card.broken canvas { background: #f6e4e8; }
+  .card.broken canvas { background: #f9e3f0; }
   .card.broken .name { color: #b23a5b; }
 
   .folder-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
@@ -76,7 +77,7 @@
 
   #drop { margin: auto; padding: 60px; border: 2px dashed var(--border); border-radius: 12px;
     text-align: center; color: var(--muted); background: var(--panel); max-width: 520px; }
-  #drop.hover { border-color: var(--accent); background: #fff5f8; }
+  #drop.hover { border-color: var(--accent); background: #fff5fb; }
   #drop h2 { color: var(--ink); font-weight: 500; }
   #dropWrap { flex: 1 1 auto; display: flex; }
 
@@ -375,7 +376,7 @@ function drawProgress(canvas, design, upTo) {
   ctx.stroke();
   ctx.globalAlpha = 1;
   if (last && n < pts.length) {
-    ctx.fillStyle = '#e0527a';
+    ctx.fillStyle = '#d63aa0';
     ctx.beginPath(); ctx.arc(tx(last.x), ty(last.y), 3.5, 0, Math.PI * 2); ctx.fill();
   }
   return current;
