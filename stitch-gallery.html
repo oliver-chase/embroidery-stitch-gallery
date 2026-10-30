@@ -94,6 +94,16 @@
   #lightbox .lb-play { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
   #lightbox .lb-play input[type=range] { flex: 1; }
   #lightbox .lb-block { margin-top: 6px; font-size: 12px; color: var(--muted); min-height: 1.2em; }
+  #lightbox .lb-colors { margin-top: 12px; text-align: left; }
+  #lightbox .lb-swatches, #lightbox .lb-palette { display: flex; flex-wrap: wrap; gap: 4px; }
+  #lightbox .lb-palette { margin-top: 8px; max-height: 64px; overflow-y: auto; }
+  #lightbox .lb-colors button.sw { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.25); cursor: pointer; padding: 0; }
+  #lightbox .lb-colors button.sw.sel { border-color: var(--panel); box-shadow: 0 0 0 2px var(--ink); }
+  #lightbox .lb-colors button.pal { width: 16px; height: 16px; border-radius: 3px; border: 0;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.2); cursor: pointer; padding: 0; }
+  #lightbox .lb-colorbar { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+  #lightbox .lb-colorbar input[type=color] { width: 28px; height: 22px; padding: 0; vertical-align: middle; }
   #lightbox .lb-controls { margin-top: 10px; font-size: 12px; color: var(--muted); }
   #lightbox .lb-controls input { width: 64px; margin-left: 6px; }
 </style>
@@ -145,6 +155,15 @@
       </select>
     </div>
     <div class="lb-block" id="lbBlock"></div>
+    <div class="lb-colors" id="lbColors">
+      <div class="lb-swatches" id="lbSwatches" aria-label="Colour blocks"></div>
+      <div class="lb-palette" id="lbPalette" aria-label="Thread palette"></div>
+      <div class="lb-colorbar">
+        <label>Custom <input type="color" id="lbCustom"></label>
+        <button type="button" id="lbResetColors">Reset colours</button>
+        <label><input type="checkbox" id="lbJumps"> Show jumps</label>
+      </div>
+    </div>
     <dl class="lb-stats" id="lbStats"></dl>
     <div class="lb-controls">
       <label>Machine speed <input type="number" id="lbSpm" min="100" max="2000" step="50"> stitches/min</label>
@@ -233,6 +252,7 @@ function colorsOf(design) {
   return (design.colors && design.colors.length) ? design.colors : PLACEHOLDER_THREADS;
 }
 function colorAt(design, i) {
+  if (design.recolor && design.recolor[i]) return design.recolor[i];
   const c = colorsOf(design);
   return (design.colors && design.colors.length) ? c[Math.min(i, c.length - 1)] : c[i % c.length];
 }
@@ -283,6 +303,17 @@ function layoutFor(canvas, design) {
   };
 }
 
+// Optional "show jumps": a dashed red line for each pen-up move, drawn between
+// the stitch runs and restoring the pen afterwards.
+function drawJump(ctx, x0, y0, x1, y1) {
+  const s = ctx.strokeStyle, w = ctx.lineWidth, a = ctx.globalAlpha;
+  ctx.stroke(); ctx.beginPath();
+  ctx.setLineDash([3, 3]); ctx.strokeStyle = '#c4452d'; ctx.lineWidth = 0.8; ctx.globalAlpha = 0.7;
+  ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  ctx.setLineDash([]); ctx.strokeStyle = s; ctx.lineWidth = w; ctx.globalAlpha = a;
+  ctx.beginPath(); ctx.moveTo(x1, y1);
+}
+
 // Draws the first `upTo` points of the design, as the machine would have sewn
 // them so far. Finished colour blocks are dimmed and the current block is
 // drawn in full strength with a dot at the needle. Returns the 0-based block.
@@ -306,7 +337,8 @@ function drawProgress(canvas, design, upTo) {
     const p = pts[i];
     if (p.colorChange) { ctx.stroke(); block++; prev = null; startBlock(); continue; }
     const isJump = p.jump || (prev && (Math.abs(p.x-prev.x) > jumpDist || Math.abs(p.y-prev.y) > jumpDist));
-    if (isJump || prev === null) ctx.moveTo(tx(p.x), ty(p.y)); else ctx.lineTo(tx(p.x), ty(p.y));
+    if (isJump && prev && design.showJumps) drawJump(ctx, tx(prev.x), ty(prev.y), tx(p.x), ty(p.y));
+    else if (isJump || prev === null) ctx.moveTo(tx(p.x), ty(p.y)); else ctx.lineTo(tx(p.x), ty(p.y));
     prev = last = p;
   }
   ctx.stroke();
@@ -345,7 +377,8 @@ function renderToCanvas(canvas, design) {
     }
     const cx = tx(p.x), cy = ty(p.y);
     const isJump = p.jump || (prev && (Math.abs(p.x-prev.x) > jumpDist || Math.abs(p.y-prev.y) > jumpDist));
-    if (isJump || prev === null) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
+    if (isJump && prev && design.showJumps) drawJump(ctx, tx(prev.x), ty(prev.y), cx, cy);
+    else if (isJump || prev === null) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
     stitchCount++;
     if (p.jump) jumps++;
     if (prev && !isJump) threadUnits += Math.hypot(p.x - prev.x, p.y - prev.y);
@@ -854,9 +887,56 @@ lbScrub.addEventListener('input', () => {
 });
 lbSpeed.addEventListener('change', () => { if (lbPlaying) { lbP0 = lbProgress; lbT0 = performance.now(); } });
 
+// ---- Recolor ----
+// Pick a colour block, then a thread from the palette or a custom colour.
+// Changes live on the open design only; they are not saved yet.
+const lbSwatches = document.getElementById('lbSwatches'), lbPalette = document.getElementById('lbPalette');
+const lbCustom = document.getElementById('lbCustom'), lbJumps = document.getElementById('lbJumps');
+let lbSel = 0;
+function blockCount(design) { return design.stitches.reduce((a, p) => a + (p.colorChange ? 1 : 0), 1); }
+function markSwatch() {
+  [...lbSwatches.children].forEach((b, i) => b.classList.toggle('sel', i === lbSel));
+  if (lbDesign) lbCustom.value = colorAt(lbDesign, lbSel);
+}
+function buildSwatches() {
+  lbSwatches.innerHTML = '';
+  if (!lbDesign) return;
+  for (let i = 0, n = blockCount(lbDesign); i < n; i++) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'sw'; b.title = `Colour ${i + 1}`;
+    b.style.background = colorAt(lbDesign, i);
+    b.addEventListener('click', () => { lbSel = i; markSwatch(); });
+    lbSwatches.append(b);
+  }
+  lbSel = 0; markSwatch();
+}
+function setBlockColor(hex) {
+  if (!lbDesign) return;
+  (lbDesign.recolor = lbDesign.recolor || [])[lbSel] = hex;
+  lbSwatches.children[lbSel].style.background = hex;
+  lbCustom.value = hex;
+  drawPlayback();
+}
+for (const hex of new Set(PEC_PALETTE)) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'pal'; b.title = hex; b.style.background = hex;
+  b.addEventListener('click', () => setBlockColor(hex));
+  lbPalette.append(b);
+}
+lbCustom.addEventListener('input', () => setBlockColor(lbCustom.value));
+document.getElementById('lbResetColors').addEventListener('click', () => {
+  if (!lbDesign) return;
+  lbDesign.recolor = [];
+  [...lbSwatches.children].forEach((b, i) => { b.style.background = colorAt(lbDesign, i); });
+  markSwatch(); drawPlayback();
+});
+lbJumps.addEventListener('change', () => { if (lbDesign) { lbDesign.showJumps = lbJumps.checked; drawPlayback(); } });
+document.getElementById('lbColors').addEventListener('click', e => e.stopPropagation());
+
 async function openLightbox(item) {
   const { fileRef } = item, token = ++lbToken;
   stopPlayback(); lbDesign = null; lbProgress = 1; lbScrub.value = 1000; lbBlock.textContent = '';
+  lbJumps.checked = false; buildSwatches();
   const canvas = document.getElementById('lbCanvas');
   canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
   document.getElementById('lbName').textContent = fileRef.name;
@@ -867,7 +947,7 @@ async function openLightbox(item) {
     const design = parseFile(fileRef.name, await readWithTimeout(fileRef.read, READ_TIMEOUT_MS));
     if (token !== lbToken) return;
     lbInfo = renderToCanvas(canvas, design);
-    lbDesign = design; lbPlayBtn.textContent = '↻ Replay';
+    lbDesign = design; lbPlayBtn.textContent = '↻ Replay'; buildSwatches();
     renderStats();
     document.getElementById('lbSub').textContent = fileRef.path;
   } catch (e) {

@@ -26,6 +26,12 @@ For `.pes` files, it also reads the embedded thread colors and uses those colors
 
 Open a design and press **Play** to watch it stitch in order, as the machine would. Drag the slider to jump to any point, and pick 1x to 20x speed. The finished color blocks dim, the current block stays bold with a dot at the needle, and a line under the slider tells you which color block and stitch you are on.
 
+### Recolor a design
+
+Open a design and click a colored dot under the slider to choose a color block. Then click a thread from the palette, or use **Custom** to pick any color. This is the quickest way to give a `.dst` design real colors. **Reset colours** puts the original colors back.
+
+Tick **Show jumps** to draw the travel moves between stitch runs as dashed red lines. Recolors work during playback. They are not saved yet: closing the preview forgets them.
+
 ### Check a design's details
 
 Click a design to see its stitch count, color changes, number of thread colors, jumps, size in millimeters, thread length and an estimated run time.
