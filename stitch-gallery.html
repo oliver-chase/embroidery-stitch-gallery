@@ -82,10 +82,16 @@
     display: none; align-items: center; justify-content: center; z-index: 100; }
   #lightbox.open { display: flex; }
   #lightbox .inner { background: var(--panel); border-radius: 12px; padding: 20px;
-    max-width: 90vw; max-height: 90vh; text-align: center; }
-  #lightbox canvas { background: var(--fabric); border-radius: 8px; max-width: 70vw; max-height: 70vh; }
+    max-width: 90vw; max-height: 90vh; overflow-y: auto; text-align: center; }
+  #lightbox canvas { background: var(--fabric); border-radius: 8px; max-width: 70vw; max-height: 52vh; }
   #lightbox .lb-meta { margin-top: 12px; font-size: 14px; }
   #lightbox .lb-sub { color: var(--muted); font-size: 12px; margin-top: 4px; word-break: break-all; }
+  #lightbox .lb-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px 16px;
+    margin: 12px 0 0; text-align: left; font-size: 12px; }
+  #lightbox .lb-stats dt { color: var(--muted); }
+  #lightbox .lb-stats dd { margin: 0; font-size: 14px; font-variant-numeric: tabular-nums; }
+  #lightbox .lb-controls { margin-top: 10px; font-size: 12px; color: var(--muted); }
+  #lightbox .lb-controls input { width: 64px; margin-left: 6px; }
 </style>
 </head>
 <body>
@@ -126,6 +132,10 @@
   <div class="inner">
     <canvas id="lbCanvas" width="600" height="600"></canvas>
     <div class="lb-meta" id="lbName"></div>
+    <dl class="lb-stats" id="lbStats"></dl>
+    <div class="lb-controls">
+      <label>Machine speed <input type="number" id="lbSpm" min="100" max="2000" step="50"> stitches/min</label>
+    </div>
     <div class="lb-sub" id="lbSub"></div>
   </div>
 </div>
@@ -254,9 +264,13 @@ function renderToCanvas(canvas, design) {
   let colorIdx = 0;
   ctx.strokeStyle = colors[0]; ctx.lineWidth = 1; ctx.lineJoin = 'round';
   let prev = null; ctx.beginPath();
+  // Details panel numbers, gathered in the same pass. Coordinates are 0.1 mm
+  // units; thread length only counts real stitches, not pen-up travel.
+  let stitchCount = 0, jumps = 0, colorChanges = 0, threadUnits = 0;
   for (const p of pts) {
     if (p.colorChange) {
       ctx.stroke();
+      colorChanges++;
       colorIdx = Math.min(colorIdx + 1, colors.length - 1);
       ctx.strokeStyle = colors[colorIdx];
       ctx.beginPath(); prev = null; continue;
@@ -264,10 +278,15 @@ function renderToCanvas(canvas, design) {
     const cx = tx(p.x), cy = ty(p.y);
     const isJump = p.jump || (prev && (Math.abs(p.x-prev.x) > jumpDist || Math.abs(p.y-prev.y) > jumpDist));
     if (isJump || prev === null) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
+    stitchCount++;
+    if (p.jump) jumps++;
+    if (prev && !isJump) threadUnits += Math.hypot(p.x - prev.x, p.y - prev.y);
     prev = p;
   }
   ctx.stroke();
-  return { width: spanX, height: spanY, count: pts.length };
+  // Only PES carries a colour table; DST has colour-change codes but no colours.
+  const colorCount = (design.colors && design.colors.length) ? new Set(design.colors.slice(0, colorChanges + 1)).size : null;
+  return { width: spanX, height: spanY, count: stitchCount, jumps, colorChanges, colorCount, threadMm: threadUnits / 10 };
 }
 
 // ---------------- TREE MODEL ----------------
@@ -494,7 +513,7 @@ async function renderCard(item, cur) {
 // paints from the cache without reading any file. Every call fails soft: in a
 // private window or an unsupported browser the gallery simply works uncached.
 // Bump CACHE_VERSION when the parsers or the card renderer change.
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 let dbPromise = null;
 function openDb() {
   if (!dbPromise) dbPromise = new Promise(res => {
@@ -671,24 +690,71 @@ dropZone.addEventListener('drop', async e => {
 });
 
 const lightbox = document.getElementById('lightbox');
-let lbToken = 0;
+const lbStats = document.getElementById('lbStats'), lbSpm = document.getElementById('lbSpm');
+let lbToken = 0, lbInfo = null;
+
+// Estimated run time: stitching at the machine speed, plus a fixed pause for
+// each colour change (thread swap and re-start).
+const COLOR_CHANGE_SECONDS = 20, DEFAULT_SPM = 1000;
+function getSpm() {
+  try { const v = parseInt(localStorage.getItem('stitch-gallery-spm'), 10); if (v >= 100 && v <= 2000) return v; } catch (e) {}
+  return DEFAULT_SPM;
+}
+function formatRuntime(info, spm) {
+  const total = Math.round(info.count / spm * 60 + COLOR_CHANGE_SECONDS * info.colorChanges);
+  if (total < 60) return `${total} sec`;
+  const h = Math.floor(total / 3600), m = Math.floor(total % 3600 / 60), s = total % 60;
+  return h ? `${h} hr ${m} min` : `${m} min ${s} sec`;
+}
+function formatThread(mm) { return mm >= 1000 ? `${(mm / 1000).toFixed(2)} m` : `${(mm / 10).toFixed(1)} cm`; }
+function renderStats() {
+  lbStats.innerHTML = '';
+  if (!lbInfo || !lbInfo.count) return;
+  const i = lbInfo;
+  const rows = [
+    ['Stitches', i.count.toLocaleString()],
+    ['Colour changes', String(i.colorChanges)],
+    ['Colours', i.colorCount === null ? 'not in file' : String(i.colorCount)],
+    ['Jumps', i.jumps.toLocaleString()],
+    ['Size', `${(i.width / 10).toFixed(1)} × ${(i.height / 10).toFixed(1)} mm`],
+    ['Thread length', formatThread(i.threadMm)],
+    ['Est. run time', formatRuntime(i, getSpm())],
+  ];
+  for (const [label, value] of rows) {
+    const row = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd');
+    dt.textContent = label; dd.textContent = value;
+    row.append(dt, dd); lbStats.append(row);
+  }
+}
+lbSpm.addEventListener('input', () => {
+  const v = parseInt(lbSpm.value, 10);
+  if (!(v >= 100 && v <= 2000)) return;
+  try { localStorage.setItem('stitch-gallery-spm', String(v)); } catch (e) {}
+  renderStats();
+});
+
 async function openLightbox(item) {
   const { fileRef } = item, token = ++lbToken;
   const canvas = document.getElementById('lbCanvas');
   canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
   document.getElementById('lbName').textContent = fileRef.name;
   document.getElementById('lbSub').textContent = 'loading…';
+  lbInfo = null; renderStats(); lbSpm.value = getSpm();
   lightbox.classList.add('open');
   try {
     const design = parseFile(fileRef.name, await readWithTimeout(fileRef.read, READ_TIMEOUT_MS));
     if (token !== lbToken) return;
-    const info = renderToCanvas(canvas, design);
-    document.getElementById('lbSub').textContent = `${infoText(info)} · ${fileRef.path}`;
+    lbInfo = renderToCanvas(canvas, design);
+    renderStats();
+    document.getElementById('lbSub').textContent = fileRef.path;
   } catch (e) {
     if (token === lbToken) document.getElementById('lbSub').textContent = `Can't preview · ${fileRef.path}`;
   }
 }
-lightbox.addEventListener('click', () => { lbToken++; lightbox.classList.remove('open'); });
+lightbox.addEventListener('click', e => {
+  if (e.target.closest('.lb-controls')) return;
+  lbToken++; lightbox.classList.remove('open');
+});
 </script>
 </body>
 </html>

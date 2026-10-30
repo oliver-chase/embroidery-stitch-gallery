@@ -22,6 +22,15 @@ It handles jump and trim stitches so designs render as separate stitch paths ins
 
 For `.pes` files, it also reads the embedded thread colors and uses those colors in the preview. `.dst` files do not contain color information, so they render in neutral gray.
 
+### Check a design's details
+
+Click a design to see its stitch count, color changes, number of thread colors, jumps, size in millimeters, thread length and an estimated run time.
+
+* **Run time** is the stitch count at your machine speed, plus 20 seconds for each color change. The default is 1,000 stitches per minute. Change **Machine speed** under the preview and the gallery remembers it.
+* **Thread length** counts only real stitches, not the travel between sections.
+* `.dst` files have color-change codes but no thread colors, so Colors reads "not in file".
+* Trims are not counted separately yet, so run time can read a few seconds short for designs with many trims.
+
 ### Find a design fast
 
 Type in the search box (or press `/`) to search every folder at once. Every word you type must appear in the file name or its folder path. Each result shows its folder, and clicking the folder opens it. Press `Esc` to clear the search.
