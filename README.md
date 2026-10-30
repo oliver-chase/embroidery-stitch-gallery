@@ -32,6 +32,8 @@ Open a design and click a colored dot under the slider to choose a color block. 
 
 Tick **Show jumps** to draw the travel moves between stitch runs as dashed red lines. Recolors work during playback and are saved with the design, so the grid thumbnail and the preview show them after a reload.
 
+Recoloring changes only how the gallery draws the design. Your `.dst` and `.pes` files are never modified, and the new colors are stored in your browser and in the tag export file. To get a recolored design into a stitch file, change the thread in your embroidery software.
+
 ### Tag and favorite designs
 
 Click the star on a card to favorite it. Open a design and type in **Add tag…** to tag it. Press Enter to add the tag, or type a comma between several, such as `halloween, fall`. Tags show on the card, and search matches them.

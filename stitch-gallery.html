@@ -6,8 +6,8 @@
 <title>Stitch Gallery</title>
 <style>
   :root {
-    --bg: #f4f1ea; --panel: #ffffff; --ink: #2b2b2b; --muted: #8a8378;
-    --accent: #9a5b3f; --accent-soft: #f2e7e0; --border: #e0dacf; --fabric: #faf8f4;
+    --bg: #fbf2f4; --panel: #ffffff; --ink: #2b2b2b; --muted: #8f7d84;
+    --accent: #b4506c; --accent-fill: #f5bccb; --accent-soft: #fce8ee; --border: #efd9df; --fabric: #fffafb;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -24,9 +24,11 @@
   .card .path { color: var(--accent); font-size: 11px; margin-top: 2px; white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis; }
   .card .path:hover { text-decoration: underline; }
-  button { font: inherit; padding: 7px 14px; border: 1px solid var(--accent);
-    background: var(--accent); color: #fff; border-radius: 6px; cursor: pointer; }
-  button.secondary { background: transparent; color: var(--accent); }
+  button { font: inherit; padding: 7px 14px; border: 1px solid var(--accent-fill);
+    background: var(--accent-fill); color: #5a2a38; border-radius: 6px; cursor: pointer; }
+  button:hover { background: #f1a9bd; border-color: #f1a9bd; }
+  button.secondary { background: transparent; color: var(--accent); border-color: var(--accent); }
+  button.secondary:hover { background: var(--accent-soft); }
 
   #main { flex: 1 1 auto; display: flex; min-height: 0; }
   #sidebar { width: 260px; flex: 0 0 260px; background: var(--panel);
@@ -36,7 +38,7 @@
   .tnode { user-select: none; }
   .trow { display: flex; align-items: center; gap: 4px; padding: 5px 8px; border-radius: 6px;
     cursor: pointer; font-size: 13px; white-space: nowrap; }
-  .trow:hover { background: #f6f2ec; }
+  .trow:hover { background: #fdf0f4; }
   .trow.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
   .caret { width: 14px; text-align: center; color: var(--muted); transition: transform 0.1s; font-size: 10px; }
   .caret.open { transform: rotate(90deg); }
@@ -60,8 +62,8 @@
   .card .meta { padding: 8px 10px; font-size: 12px; }
   .card .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
   .card .sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
-  .card.broken canvas { background: #f0e8e6; }
-  .card.broken .name { color: #a5493a; }
+  .card.broken canvas { background: #f6e4e8; }
+  .card.broken .name { color: #b23a5b; }
 
   .folder-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
     cursor: pointer; display: flex; flex-direction: column; align-items: center;
@@ -74,7 +76,7 @@
 
   #drop { margin: auto; padding: 60px; border: 2px dashed var(--border); border-radius: 12px;
     text-align: center; color: var(--muted); background: var(--panel); max-width: 520px; }
-  #drop.hover { border-color: var(--accent); background: #fbf7f3; }
+  #drop.hover { border-color: var(--accent); background: #fff5f8; }
   #drop h2 { color: var(--ink); font-weight: 500; }
   #dropWrap { flex: 1 1 auto; display: flex; }
 
@@ -153,7 +155,7 @@
         <p>Or click "Choose Folder…" above. Everything stays on your computer &mdash; nothing is uploaded.</p>
         <div id="reopen" style="display:none; margin: 14px 0"><button id="reopenBtn"></button></div>
         <p style="font-size:12px">Reads .dst and .pes files (the two most common formats).</p>
-        <p style="font-size:12px; color:#a5493a">Using OneDrive / iCloud / Dropbox? Make the folder available offline first for best speed.</p>
+        <p style="font-size:12px; color:#b23a5b">Using OneDrive / iCloud / Dropbox? Make the folder available offline first for best speed.</p>
       </div>
     </div>
     <div id="breadcrumb" style="display:none"></div>
@@ -373,7 +375,7 @@ function drawProgress(canvas, design, upTo) {
   ctx.stroke();
   ctx.globalAlpha = 1;
   if (last && n < pts.length) {
-    ctx.fillStyle = '#d6451f';
+    ctx.fillStyle = '#e0527a';
     ctx.beginPath(); ctx.arc(tx(last.x), ty(last.y), 3.5, 0, Math.PI * 2); ctx.fill();
   }
   return current;
@@ -644,7 +646,7 @@ async function renderCard(item, cur) {
     card.classList.add('broken');
     canvas.width = CARD_W; canvas.height = CARD_H;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#a5493a'; ctx.font = '22px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#b23a5b'; ctx.font = '22px sans-serif'; ctx.textAlign = 'center';
     if (e.message === 'timeout') {
       ctx.fillText('Cloud-only', CARD_W/2, CARD_H/2 - 8);
       ctx.font = '16px sans-serif';
