@@ -127,3 +127,23 @@ Everything runs from a single HTML file with inline CSS and JavaScript. There is
 * Firefox and Safari fall back to a standard file picker and do not provide the same live folder-tree access.
 
 The result is a simple workflow: **point Stitch Gallery at an existing embroidery folder, and immediately see the designs inside it without changing, uploading, or reorganizing your files.**
+
+---
+
+## Tests
+
+The gallery needs nothing installed. The tests are for anyone changing the file readers, and they need Node 18 or newer and no packages.
+
+```bash
+node --test tests/*.test.mjs
+```
+
+The tests load the readers straight out of `stitch-gallery.html` and check them against small sample files in `tests/fixtures`. The samples are built from known stitches, so they contain no one's real designs. They cover stitch positions, jumps, color changes, the thread palette, the flipped DST axis and the size limits of both formats. `node tests/make-fixtures.mjs` rebuilds the sample files.
+
+To check a real folder, run the same readers over it:
+
+```bash
+node tests/audit-library.mjs "/path/to/embroidery folder"
+```
+
+It lists files that fail to read, come out empty or measure over a metre. It skips cloud-only files, so it never downloads anything.
