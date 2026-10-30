@@ -180,7 +180,7 @@
     <div class="lb-favrow" id="lbFavRow">
       <button type="button" id="lbFav" class="lb-fav" aria-pressed="false" title="Favorite" disabled>☆</button>
     </div>
-    <div class="lb-play" id="lbPlay">
+    <div class="lb-play">
       <button type="button" id="lbPlayBtn" aria-label="Play">▶ Play</button>
       <input type="range" id="lbScrub" min="0" max="1000" value="1000" aria-label="Playback position">
       <select id="lbSpeed" aria-label="Playback speed">
@@ -208,7 +208,7 @@
 </div>
 
 <script>
-// ---------------- PARSERS (tested) ----------------
+// ---------------- PARSERS (covered by tests/parsers.test.mjs) ----------------
 function parseDST(buffer) {
   const v = new Uint8Array(buffer);
   const stitches = []; let x = 0, y = 0, pos = 512;
@@ -394,8 +394,8 @@ function renderToCanvas(canvas, design) {
 
   const { spanX, spanY, jumpDist, tx, ty } = layoutFor(canvas, design);
 
-  // Real thread colours per block; fall back to charcoal for stitch-only
-  // formats (like DST) that carry no colour data.
+  // colorAt gives each block its recolor, its real thread colour, or a stand-in
+  // thread for formats (like DST) that carry no colour data.
   let colorIdx = 0;
   ctx.strokeStyle = colorAt(design, 0); ctx.lineWidth = 1; ctx.lineJoin = 'round';
   let prev = null; ctx.beginPath();

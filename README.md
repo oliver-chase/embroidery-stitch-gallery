@@ -75,7 +75,7 @@ Each design's thumbnail and size are cached in your browser, so a folder you hav
 
 Nothing is uploaded anywhere. Stitch data is read and rendered in your browser, in memory.
 
-Stitch Gallery also handles cloud-backed folders. If a file in OneDrive, iCloud, or Dropbox has not been downloaded to your computer, it is marked **cloud-only** instead of causing the gallery to freeze.
+Stitch Gallery also handles cloud-backed folders. The gallery reads only the file names while it scans, and it reads a design's contents only when that design's card comes near the screen. If a file in OneDrive, iCloud, or Dropbox has not been downloaded to your computer, opening it can trigger a download. The gallery waits up to 30 seconds for each file and works on four at a time. A file that has not arrived by then is marked **cloud-only**, and the rest of the page keeps working. The first time you open a large cloud-only folder, thumbnails appear as the files finish downloading.
 
 The folder structure is scanned once when you open it, so moving between folders afterward is fast.
 
@@ -112,7 +112,7 @@ Everything runs from a single HTML file with inline CSS and JavaScript. There is
 * A hand-written binary parser reads DST and PEC/PES stitch data directly.
 * A folder-tree model preserves the real folder structure.
 * The File System Access API reads folder and file names without immediately reading every file's contents. Stitch data is read only when needed, which prevents cloud-backed folders from stalling during the initial scan.
-* Each design is drawn to an HTML canvas, scaled to fit the preview, and colored using its embedded thread palette when one is available.
+* Each design is drawn to an HTML canvas, scaled to fit the preview, and colored using its embedded thread palette when one is available, or stand-in colors when it has none.
 * Cards render only near the visible part of the page. Cards that scroll far away release their canvas, so a folder of thousands of designs stays light.
 * Drag-and-drop provides a fallback when live folder access is unavailable.
 
@@ -124,7 +124,7 @@ Everything runs from a single HTML file with inline CSS and JavaScript. There is
 * Thread colors require a `.pes` file with an embedded color table.
 * `.dst` colors are placeholders, because DST contains no color data.
 * Folder selection works best in Chromium-based browsers such as Chrome and Edge.
-* Firefox and Safari fall back to a standard file picker and do not provide the same live folder-tree access.
+* Firefox and Safari fall back to a standard file picker and do not provide the same live folder-tree access. They have not been tested.
 
 The result is a simple workflow: **point Stitch Gallery at an existing embroidery folder, and immediately see the designs inside it without changing, uploading, or reorganizing your files.**
 
@@ -132,7 +132,7 @@ The result is a simple workflow: **point Stitch Gallery at an existing embroider
 
 ## Tests
 
-The gallery needs nothing installed. The tests are for anyone changing the file readers, and they need Node 18 or newer and no packages.
+The gallery needs nothing installed. The tests are for anyone changing the file readers. They use the test runner built into Node (18 or newer; run here on Node 24) and need no packages.
 
 ```bash
 node --test tests/*.test.mjs
