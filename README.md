@@ -91,7 +91,7 @@ If your embroidery files are stored in the cloud, make the folder available offl
 | `.dst` | Tajima commercial format. Stitch data is supported; the format does not contain thread colors, so previews use stand-in colors. |
 | `.pes` | Brother / Babylock format. Embedded thread colors are read from the standard PEC thread palette.                             |
 
-Other formats, including `.jef`, `.vp3`, and `.exp`, are not parsed yet.
+These formats are listed with a "preview not supported yet" note and can still be tagged and favorited, but not previewed: `.jef`, `.exp`, `.vp3`, `.hus`, `.xxx`, `.sew`, `.pec`, `.vip`, `.shv`, `.pcs` and `.emd`.
 
 Unsupported files still appear in the gallery, but show a **can't preview** placeholder.
 

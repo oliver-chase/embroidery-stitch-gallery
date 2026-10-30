@@ -155,7 +155,7 @@
         <h2>Drag your embroidery folder here</h2>
         <p>Or click "Choose Folder…" above. Everything stays on your computer &mdash; nothing is uploaded.</p>
         <div id="reopen" style="display:none; margin: 14px 0"><button id="reopenBtn"></button></div>
-        <p style="font-size:12px">Reads .dst and .pes files (the two most common formats).</p>
+        <p style="font-size:12px">Previews .dst and .pes files. Other embroidery formats are listed with a "not supported yet" note.</p>
         <p style="font-size:12px; color:#b23a5b">Using OneDrive / iCloud / Dropbox? Make the folder available offline first for best speed.</p>
       </div>
     </div>
@@ -166,7 +166,7 @@
 </div>
 
 <input type="file" id="fileInput" webkitdirectory directory multiple style="display:none">
-<input type="file" id="fileInputFlat" multiple accept=".dst,.pes" style="display:none">
+<input type="file" id="fileInputFlat" multiple accept=".dst,.pes,.jef,.exp,.vp3,.hus,.xxx,.sew,.pec,.vip,.shv,.pcs,.emd" style="display:none">
 
 <div id="lightbox">
   <div class="inner">
@@ -460,7 +460,11 @@ const sidebar = document.getElementById('sidebar');
 const treeEl = document.getElementById('tree');
 const breadcrumb = document.getElementById('breadcrumb');
 const SUPPORTED = ['dst', 'pes'];
-function supported(name) { return SUPPORTED.includes(name.split('.').pop().toLowerCase()); }
+// Other embroidery formats are listed too, as "not supported yet" cards, so a
+// folder of 400 files never shows a gallery of 250 with no explanation.
+const LISTED_ONLY = ['jef', 'exp', 'vp3', 'hus', 'xxx', 'sew', 'pec', 'vip', 'shv', 'pcs', 'emd'];
+const extOf = name => name.split('.').pop().toLowerCase();
+function supported(name) { return SUPPORTED.includes(extOf(name)) || LISTED_ONLY.includes(extOf(name)); }
 
 function buildTreeSidebar() { treeEl.innerHTML = ''; treeEl.appendChild(renderTreeNode(root, 0)); sidebar.style.display = 'block'; }
 function renderTreeNode(node, depth) {
@@ -655,7 +659,7 @@ async function renderCard(item, cur) {
       subEl.textContent = 'Not downloaded — make available offline';
     } else {
       ctx.fillText("Can't preview", CARD_W/2, CARD_H/2);
-      subEl.textContent = fileRef.name.split('.').pop().toUpperCase() + ' · unreadable';
+      subEl.textContent = extOf(fileRef.name).toUpperCase() + (LISTED_ONLY.includes(extOf(fileRef.name)) ? ' · preview not supported yet' : ' · unreadable');
     }
   }
 }
@@ -901,7 +905,7 @@ async function loadDirectoryHandle(dirHandle) {
 
 async function loadFiles(files) {
   const list = Array.from(files).filter(f => supported(f.name));
-  if (!list.length) { statusEl.textContent = 'No .dst or .pes files found.'; return; }
+  if (!list.length) { statusEl.textContent = 'No embroidery files found.'; return; }
   dropWrap.style.display = 'none'; statusEl.textContent = 'Scanning folder structure…';
   const first = list[0].webkitRelativePath || list[0].name;
   const rootName = first.includes('/') ? first.split('/')[0] : 'Designs';
