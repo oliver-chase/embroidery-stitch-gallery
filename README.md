@@ -55,6 +55,12 @@ Click a design to see its stitch count, color changes, number of thread colors, 
 * `.dst` files have color-change codes but no thread colors, so Colors reads "not in file".
 * Trims are not counted separately yet, so run time can read a few seconds short for designs with many trims.
 
+### Sort a folder
+
+Use the **Sort** menu above the grid to order designs by name, largest or smallest file, or newest or oldest. It applies to folders, search results and Favorites, and the gallery remembers your choice. Name sorting puts `Flower_2` before `Flower_10`.
+
+File size and date come from the file listing, so sorting works on cloud-only files without downloading them. While you sort by size or date, each card also shows its file size and date. A file whose details cannot be read sorts last.
+
 ### Find a design fast
 
 Type in the search box (or press `/`) to search every folder at once. Every word you type must appear in the file name or its folder path. Each result shows its folder, and clicking the folder opens it. Press `Esc` to clear the search.

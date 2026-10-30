@@ -52,6 +52,8 @@
   #breadcrumb { padding: 12px 24px 4px; font-size: 13px; color: var(--muted); flex: 0 0 auto; }
   #breadcrumb .crumb { color: var(--accent); cursor: pointer; }
   #breadcrumb .crumb:hover { text-decoration: underline; }
+  #sortBar { padding: 4px 24px 0; font-size: 12px; color: var(--muted); flex: 0 0 auto; }
+  #sortBar select { font: inherit; padding: 3px 6px; margin-left: 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--ink); }
   #status { padding: 4px 24px; color: var(--muted); font-size: 12px; flex: 0 0 auto; }
 
   #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
@@ -151,6 +153,18 @@
       </div>
     </div>
     <div id="breadcrumb" style="display:none"></div>
+    <div id="sortBar" style="display:none">
+      <label>Sort
+        <select id="sortSel" aria-label="Sort designs">
+          <option value="name-asc">Name A to Z</option>
+          <option value="name-desc">Name Z to A</option>
+          <option value="size-desc">Largest file first</option>
+          <option value="size-asc">Smallest file first</option>
+          <option value="date-desc">Newest first</option>
+          <option value="date-asc">Oldest first</option>
+        </select>
+      </label>
+    </div>
     <div id="status"></div>
     <div id="grid"></div>
   </div>
@@ -467,7 +481,7 @@ function renderTreeNode(node, depth) {
   const cnt = document.createElement('span'); cnt.className = 'tcount'; cnt.textContent = countFilesDeep(node);
   row.appendChild(caret); row.appendChild(label); row.appendChild(cnt); wrap.appendChild(row);
   const childrenWrap = document.createElement('div'); childrenWrap.className = 'tchildren';
-  const sorted = [...node.folders.values()].sort((a,b)=>a.name.localeCompare(b.name));
+  const sorted = [...node.folders.values()].sort(byName);
   for (const child of sorted) childrenWrap.appendChild(renderTreeNode(child, depth+1));
   wrap.appendChild(childrenWrap);
   caret.addEventListener('click', e => { e.stopPropagation(); caret.classList.toggle('open'); childrenWrap.classList.toggle('open'); });
@@ -513,11 +527,59 @@ function navigateTo(path) {
   currentPath = path;
   const node = findNode(path);
   setActiveTreeRow(path); renderBreadcrumb(path);
-  const folders = [...node.folders.values()].sort((a,b)=>a.name.localeCompare(b.name));
-  const files = [...node.files].sort((a,b)=>a.name.localeCompare(b.name));
-  showGrid(folders, files,
-    `${folders.length ? folders.length + ' folders · ' : ''}${files.length} designs in this folder`);
+  const folders = [...node.folders.values()].sort(byName);
+  showSorted(folders, node.files,
+    `${folders.length ? folders.length + ' folders · ' : ''}${node.files.length} designs in this folder`);
 }
+
+// ---- Sorting ----
+// Name sorts are instant and treat digits as numbers (Flower_2 before Flower_10).
+// File size and date come from the file listing, so they work on cloud-only
+// files without downloading them. A file whose details cannot be read sorts
+// last. Folder tiles always stay in name order.
+const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+const sortSel = document.getElementById('sortSel');
+let sortMode = 'name-asc', sortToken = 0;
+try { const v = localStorage.getItem('stitch-gallery-sort'); if ([...sortSel.options].some(o => o.value === v)) sortMode = v; } catch (e) {}
+sortSel.value = sortMode;
+
+async function readFileStats(fileRef) {
+  if (fileRef.stats) return;
+  try { const m = await readWithTimeout(fileRef.meta, READ_TIMEOUT_MS); fileRef.stats = { size: m.size, mtime: m.mtime }; }
+  catch (e) { fileRef.stats = { size: null, mtime: null }; }
+}
+function sortedBy(files) {
+  const [key, dir] = sortMode.split('-'), sign = dir === 'asc' ? 1 : -1;
+  if (key === 'name') return [...files].sort((a, b) => sign * byName(a, b));
+  const val = f => key === 'size' ? f.stats.size : f.stats.mtime;
+  return [...files].sort((a, b) => {
+    const x = val(a), y = val(b);
+    if (x == null || y == null) return (x == null) - (y == null) || byName(a, b);   // unknown last
+    return sign * (x - y) || byName(a, b);
+  });
+}
+// Fills in file details only when a size or date sort needs them, with a few
+// reads at a time. A newer view that starts meanwhile cancels this one.
+async function showSorted(folders, files, statusText, showPath) {
+  const token = ++sortToken;
+  if (!sortMode.startsWith('name') && files.some(f => !f.stats)) {
+    statusEl.textContent = 'Reading file sizes and dates…';
+    const todo = files.filter(f => !f.stats);
+    await Promise.all(Array.from({ length: 12 }, async () => { while (todo.length && token === sortToken) await readFileStats(todo.pop()); }));
+    if (token !== sortToken) return;
+  }
+  showGrid(folders, sortedBy(files), statusText, showPath);
+}
+function reshowCurrent() {
+  if (searchEl.value.trim()) runSearch();
+  else if (activeView) showFavorites();
+  else navigateTo(currentPath);
+}
+sortSel.addEventListener('change', () => {
+  sortMode = sortSel.value;
+  try { localStorage.setItem('stitch-gallery-sort', sortMode); } catch (e) {}
+  reshowCurrent();
+});
 
 // Draws folder tiles, then design cards that fill in lazily.
 function showGrid(folders, files, statusText, showPath) {
@@ -567,6 +629,12 @@ function makeDesignCardShell(fileRef, showPath) {
     meta.appendChild(pathEl);
   }
   const subEl = document.createElement('div'); subEl.className = 'sub'; subEl.textContent = 'loading…'; meta.appendChild(subEl);
+  if (fileRef.stats && fileRef.stats.size != null && !sortMode.startsWith('name')) {
+    const st = document.createElement('div'); st.className = 'sub';
+    const kb = fileRef.stats.size / 1024;
+    st.textContent = `${kb >= 1024 ? (kb / 1024).toFixed(1) + ' MB' : Math.round(kb) + ' KB'} · ${new Date(fileRef.stats.mtime).toLocaleDateString()}`;
+    meta.appendChild(st);
+  }
 
   const favEl = document.createElement('button'); favEl.type = 'button'; favEl.className = 'fav'; favEl.title = 'Favorite';
   card.appendChild(favEl);
@@ -779,12 +847,12 @@ function refreshViews() {
 }
 function showFavorites() {
   searchEl.value = '';
-  const files = allFiles.filter(f => metaMap.get(f.path)?.fav).sort((a, b) => a.name.localeCompare(b.name));
+  const files = allFiles.filter(f => metaMap.get(f.path)?.fav);
   activeView = 'fav';
   setActiveTreeRow(null);
   breadcrumb.style.display = 'block'; breadcrumb.textContent = 'Favorites';
   refreshViews();
-  showGrid([], files, `${files.length} designs in Favorites`, true);
+  showSorted([], files, `${files.length} designs in Favorites`, true);
 }
 // ---------------- SEARCH ----------------
 // Matches on file names from the tree built at load time, so searching never
@@ -794,11 +862,10 @@ let searchTimer = 0;
 function runSearch() {
   const words = searchEl.value.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) { navigateTo(currentPath); return; }
-  const hits = allFiles.filter(f => { const hay = f.path.toLowerCase(); return words.every(w => hay.includes(w)); })
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const hits = allFiles.filter(f => { const hay = f.path.toLowerCase(); return words.every(w => hay.includes(w)); });
   setActiveTreeRow(null);
   breadcrumb.style.display = 'block'; breadcrumb.textContent = 'Search results';
-  showGrid([], hits, `${hits.length} of ${allFiles.length} designs match "${searchEl.value.trim()}"`, true);
+  showSorted([], hits, `${hits.length} of ${allFiles.length} designs match "${searchEl.value.trim()}"`, true);
 }
 searchEl.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 120); });
 searchEl.addEventListener('keydown', e => {
@@ -819,6 +886,7 @@ document.addEventListener('keydown', e => {
 function finishLoading() {
   dropWrap.style.display = 'none';
   searchEl.style.display = ''; searchEl.value = ''; clearCacheBtn.style.display = '';
+  document.getElementById('sortBar').style.display = '';
   countEl.textContent = `${totalFiles} designs`;
   buildTreeSidebar();
   metaReady.then(refreshViews);
