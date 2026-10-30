@@ -189,6 +189,7 @@
       <label>Machine speed <input type="number" id="lbSpm" min="100" max="2000" step="50"> stitches/min</label>
     </div>
     <div class="lb-sub" id="lbSub"></div>
+    <div class="lb-sub" aria-hidden="true">← → previous and next design · Esc to close</div>
   </div>
 </div>
 
@@ -1083,6 +1084,24 @@ function closeLightbox() {
   if (lbRecolorDirty && lbItem && nav && lbItem.card.isConnected) { lbItem.state = 'queued'; nav.queue.push(lbItem); pump(nav); }
   lbRecolorDirty = false;
 }
+
+// Keyboard: Esc closes the preview anywhere. Left and right step through the
+// cards in the folder you are looking at. They stay out of the way while a
+// slider, field or menu has focus, because those use the arrow keys too.
+document.addEventListener('keydown', e => {
+  if (!lightbox.classList.contains('open')) return;
+  if (e.key === 'Escape') { e.preventDefault(); closeLightbox(); return; }
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName) || !lbItem) return;
+  const side = e.key === 'ArrowRight' ? 'nextElementSibling' : 'previousElementSibling';
+  let el = lbItem.card[side];
+  while (el && !el._item) el = el[side];     // skip folder tiles
+  if (!el) return;
+  e.preventDefault();
+  closeLightbox();                           // redraws the card if it was recolored
+  el.scrollIntoView({ block: 'nearest' });
+  openLightbox(el._item);
+});
 
 async function openLightbox(item) {
   const { fileRef } = item, token = ++lbToken;

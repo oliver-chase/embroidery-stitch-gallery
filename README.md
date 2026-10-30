@@ -22,6 +22,10 @@ It handles jump and trim stitches so designs render as separate stitch paths ins
 
 For `.pes` files, it also reads the embedded thread colors and uses those colors in the preview. `.dst` files do not contain color information, so each color block gets a stand-in thread color. Those colors are placeholders, not the real thread.
 
+### Step through a folder
+
+With a design open, press the left and right arrow keys to move to the previous or next design in the folder, and Esc to close. The arrows pause while the slider, speed menu or a text field has focus, since those use the arrow keys too.
+
 ### Watch it sew
 
 Open a design and press **Play** to watch it stitch in order, as the machine would. Drag the slider to jump to any point, and pick 1x to 20x speed. The finished color blocks dim, the current block stays bold with a dot at the needle, and a line under the slider tells you which color block and stitch you are on.
