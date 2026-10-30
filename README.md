@@ -30,7 +30,17 @@ Open a design and press **Play** to watch it stitch in order, as the machine wou
 
 Open a design and click a colored dot under the slider to choose a color block. Then click a thread from the palette, or use **Custom** to pick any color. This is the quickest way to give a `.dst` design real colors. **Reset colours** puts the original colors back.
 
-Tick **Show jumps** to draw the travel moves between stitch runs as dashed red lines. Recolors work during playback. They are not saved yet: closing the preview forgets them.
+Tick **Show jumps** to draw the travel moves between stitch runs as dashed red lines. Recolors work during playback and are saved with the design, so the grid thumbnail and the preview show them after a reload.
+
+### Tag and favorite designs
+
+Click the star on a card to favorite it. Open a design and type in **Add tag…** to tag it. Press Enter to add the tag, or type a comma between several, such as `halloween, fall`. Tags show on the card, and search matches them.
+
+The **Saved** list in the sidebar has Favorites and one row per tag, each with a count. Click a row to see those designs from every folder.
+
+Tags, favorites and recolors are stored in your browser, keyed by file path and file size. **Clear cache** leaves them alone. A file replaced by one of a different size starts with no tags.
+
+**Export tags** saves a JSON file with all of it. **Import tags** loads one, so you can move your tags to another computer that has the same folder layout.
 
 ### Check a design's details
 
