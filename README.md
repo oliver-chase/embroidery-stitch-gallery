@@ -20,7 +20,11 @@ Stitch Gallery draws the **real needle path** from each embroidery file instead 
 
 It handles jump and trim stitches so designs render as separate stitch paths instead of looking like tangled lines.
 
-For `.pes` files, it also reads the embedded thread colors and uses those colors in the preview. `.dst` files do not contain color information, so they render in neutral gray.
+For `.pes` files, it also reads the embedded thread colors and uses those colors in the preview. `.dst` files do not contain color information, so each color block gets a stand-in thread color. Those colors are placeholders, not the real thread.
+
+### Watch it sew
+
+Open a design and press **Play** to watch it stitch in order, as the machine would. Drag the slider to jump to any point, and pick 1x to 20x speed. The finished color blocks dim, the current block stays bold with a dot at the needle, and a line under the slider tells you which color block and stitch you are on.
 
 ### Check a design's details
 
@@ -66,7 +70,7 @@ If your embroidery files are stored in the cloud, make the folder available offl
 
 | Format | Support                                                                                                                      |
 | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| `.dst` | Tajima commercial format. Stitch data is supported; the format does not contain thread colors, so previews use neutral gray. |
+| `.dst` | Tajima commercial format. Stitch data is supported; the format does not contain thread colors, so previews use stand-in colors. |
 | `.pes` | Brother / Babylock format. Embedded thread colors are read from the standard PEC thread palette.                             |
 
 Other formats, including `.jef`, `.vp3`, and `.exp`, are not parsed yet.
@@ -92,7 +96,7 @@ Everything runs from a single HTML file with inline CSS and JavaScript. There is
 
 * Only `.dst` and `.pes` files are currently parsed.
 * Thread colors require a `.pes` file with an embedded color table.
-* `.dst` designs render in neutral gray because DST contains no color data.
+* `.dst` colors are placeholders, because DST contains no color data.
 * Folder selection works best in Chromium-based browsers such as Chrome and Edge.
 * Firefox and Safari fall back to a standard file picker and do not provide the same live folder-tree access.
 

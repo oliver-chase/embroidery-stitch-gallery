@@ -83,13 +83,17 @@
   #lightbox.open { display: flex; }
   #lightbox .inner { background: var(--panel); border-radius: 12px; padding: 20px;
     max-width: 90vw; max-height: 90vh; overflow-y: auto; text-align: center; }
-  #lightbox canvas { background: var(--fabric); border-radius: 8px; max-width: 70vw; max-height: 52vh; }
+  #lightbox canvas { background: var(--fabric); border-radius: 8px; max-width: 70vw; max-height: 46vh; }
   #lightbox .lb-meta { margin-top: 12px; font-size: 14px; }
   #lightbox .lb-sub { color: var(--muted); font-size: 12px; margin-top: 4px; word-break: break-all; }
-  #lightbox .lb-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px 16px;
+  #lightbox .lb-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 16px;
     margin: 12px 0 0; text-align: left; font-size: 12px; }
+  @media (max-width: 560px) { #lightbox .lb-stats { grid-template-columns: repeat(2, 1fr); } }
   #lightbox .lb-stats dt { color: var(--muted); }
   #lightbox .lb-stats dd { margin: 0; font-size: 14px; font-variant-numeric: tabular-nums; }
+  #lightbox .lb-play { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  #lightbox .lb-play input[type=range] { flex: 1; }
+  #lightbox .lb-block { margin-top: 6px; font-size: 12px; color: var(--muted); min-height: 1.2em; }
   #lightbox .lb-controls { margin-top: 10px; font-size: 12px; color: var(--muted); }
   #lightbox .lb-controls input { width: 64px; margin-left: 6px; }
 </style>
@@ -132,6 +136,15 @@
   <div class="inner">
     <canvas id="lbCanvas" width="600" height="600"></canvas>
     <div class="lb-meta" id="lbName"></div>
+    <div class="lb-play" id="lbPlay">
+      <button type="button" id="lbPlayBtn" aria-label="Play">▶ Play</button>
+      <input type="range" id="lbScrub" min="0" max="1000" value="1000" aria-label="Playback position">
+      <select id="lbSpeed" aria-label="Playback speed">
+        <option value="1">1×</option><option value="2">2×</option><option value="5">5×</option>
+        <option value="10">10×</option><option value="20">20×</option>
+      </select>
+    </div>
+    <div class="lb-block" id="lbBlock"></div>
     <dl class="lb-stats" id="lbStats"></dl>
     <div class="lb-controls">
       <label>Machine speed <input type="number" id="lbSpm" min="100" max="2000" step="50"> stitches/min</label>
@@ -160,7 +173,8 @@ function parseDST(buffer) {
     if (b2 & 0x04) dx += 81;  if (b2 & 0x08) dx -= 81;
     if (b2 & 0x20) dy += 81;  if (b2 & 0x10) dy -= 81;
     x += dx; y += dy;
-    stitches.push({ x, y, jump: (b2 & 0x80) !== 0, colorChange: (b2 & 0x40) !== 0 });
+    // DST counts Y upward; the canvas counts downward, so flip it here.
+    stitches.push({ x, y: -y, jump: (b2 & 0x80) !== 0, colorChange: (b2 & 0x40) !== 0 });
   }
   return { stitches, colors: [] };
 }
@@ -212,6 +226,16 @@ function parsePES(buffer) {
   }
   return { stitches, colors };
 }
+// DST has colour-change codes but no colours. Give each block a distinct
+// stand-in thread so the colour sections are still visible.
+const PLACEHOLDER_THREADS = ["#2f2f2f", "#c0392b", "#2e7d32", "#1f5fa8", "#d4a017", "#7b3f9e", "#e07b00", "#00838f"];
+function colorsOf(design) {
+  return (design.colors && design.colors.length) ? design.colors : PLACEHOLDER_THREADS;
+}
+function colorAt(design, i) {
+  const c = colorsOf(design);
+  return (design.colors && design.colors.length) ? c[Math.min(i, c.length - 1)] : c[i % c.length];
+}
 function parseFile(name, buffer) {
   const ext = name.split('.').pop().toLowerCase();
   if (ext === 'dst') return parseDST(buffer);
@@ -241,6 +265,59 @@ function robustBounds(pts) {
   return { minX, maxX, minY, maxY };
 }
 
+// Scale and offset that fit the design into the canvas. Worked out once per
+// design and canvas size, so playback can redraw every frame without
+// re-measuring the whole design.
+function layoutFor(canvas, design) {
+  const W = canvas.width, H = canvas.height, key = W + 'x' + H;
+  if (design._layout && design._layout.key === key) return design._layout;
+  const { minX, maxX, minY, maxY } = robustBounds(design.stitches);
+  const spanX = Math.max(maxX-minX,1), spanY = Math.max(maxY-minY,1);
+  const pad = 12, scale = Math.min((W-2*pad)/spanX, (H-2*pad)/spanY);
+  const offX = pad + (W-2*pad-spanX*scale)/2, offY = pad + (H-2*pad-spanY*scale)/2;
+  // Any move longer than a quarter of the design is treated as a pen-up
+  // travel and not drawn, which also catches jumps the parser missed.
+  return design._layout = {
+    key, spanX, spanY, jumpDist: Math.max(spanX, spanY) * 0.25,
+    tx: x => offX + (x-minX)*scale, ty: y => offY + (y-minY)*scale,
+  };
+}
+
+// Draws the first `upTo` points of the design, as the machine would have sewn
+// them so far. Finished colour blocks are dimmed and the current block is
+// drawn in full strength with a dot at the needle. Returns the 0-based block.
+function drawProgress(canvas, design, upTo) {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const pts = design.stitches, n = Math.max(0, Math.min(upTo, pts.length));
+  const { jumpDist, tx, ty } = layoutFor(canvas, design);
+  let current = 0;
+  for (let i = 0; i < n; i++) if (pts[i].colorChange) current++;
+  let block = 0, prev = null, last = null;
+  ctx.lineWidth = 1; ctx.lineJoin = 'round';
+  const startBlock = () => {
+    ctx.strokeStyle = colorAt(design, block);
+    ctx.globalAlpha = block === current ? 1 : 0.45;
+    ctx.lineWidth = block === current ? 1.5 : 1;
+    ctx.beginPath();
+  };
+  startBlock();
+  for (let i = 0; i < n; i++) {
+    const p = pts[i];
+    if (p.colorChange) { ctx.stroke(); block++; prev = null; startBlock(); continue; }
+    const isJump = p.jump || (prev && (Math.abs(p.x-prev.x) > jumpDist || Math.abs(p.y-prev.y) > jumpDist));
+    if (isJump || prev === null) ctx.moveTo(tx(p.x), ty(p.y)); else ctx.lineTo(tx(p.x), ty(p.y));
+    prev = last = p;
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  if (last && n < pts.length) {
+    ctx.fillStyle = '#d6451f';
+    ctx.beginPath(); ctx.arc(tx(last.x), ty(last.y), 3.5, 0, Math.PI * 2); ctx.fill();
+  }
+  return current;
+}
+
 function renderToCanvas(canvas, design) {
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
@@ -248,21 +325,12 @@ function renderToCanvas(canvas, design) {
   const pts = design.stitches;
   if (!pts.length) return { width: 0, height: 0, count: 0 };
 
-  const { minX, maxX, minY, maxY } = robustBounds(pts);
-  const spanX = Math.max(maxX-minX,1), spanY = Math.max(maxY-minY,1);
-  const pad = 12, scale = Math.min((W-2*pad)/spanX, (H-2*pad)/spanY);
-  const offX = pad + (W-2*pad-spanX*scale)/2, offY = pad + (H-2*pad-spanY*scale)/2;
-  const tx = x => offX + (x-minX)*scale, ty = y => offY + (y-minY)*scale;
-
-  // Any move longer than a quarter of the design is treated as a pen-up
-  // travel and not drawn, which also catches jumps the parser missed.
-  const jumpDist = Math.max(spanX, spanY) * 0.25;
+  const { spanX, spanY, jumpDist, tx, ty } = layoutFor(canvas, design);
 
   // Real thread colours per block; fall back to charcoal for stitch-only
   // formats (like DST) that carry no colour data.
-  const colors = (design.colors && design.colors.length) ? design.colors : ['#333333'];
   let colorIdx = 0;
-  ctx.strokeStyle = colors[0]; ctx.lineWidth = 1; ctx.lineJoin = 'round';
+  ctx.strokeStyle = colorAt(design, 0); ctx.lineWidth = 1; ctx.lineJoin = 'round';
   let prev = null; ctx.beginPath();
   // Details panel numbers, gathered in the same pass. Coordinates are 0.1 mm
   // units; thread length only counts real stitches, not pen-up travel.
@@ -271,8 +339,8 @@ function renderToCanvas(canvas, design) {
     if (p.colorChange) {
       ctx.stroke();
       colorChanges++;
-      colorIdx = Math.min(colorIdx + 1, colors.length - 1);
-      ctx.strokeStyle = colors[colorIdx];
+      colorIdx++;
+      ctx.strokeStyle = colorAt(design, colorIdx);
       ctx.beginPath(); prev = null; continue;
     }
     const cx = tx(p.x), cy = ty(p.y);
@@ -513,7 +581,7 @@ async function renderCard(item, cur) {
 // paints from the cache without reading any file. Every call fails soft: in a
 // private window or an unsupported browser the gallery simply works uncached.
 // Bump CACHE_VERSION when the parsers or the card renderer change.
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 let dbPromise = null;
 function openDb() {
   if (!dbPromise) dbPromise = new Promise(res => {
@@ -733,8 +801,62 @@ lbSpm.addEventListener('input', () => {
   renderStats();
 });
 
+// ---- Playback ----
+// One progress value from 0 to 1 is advanced by requestAnimationFrame and
+// mapped to "the first N points". At 1x the sew-through takes about 4 ms per
+// stitch (4 to 40 seconds); the speed menu divides that.
+let lbDesign = null, lbProgress = 1, lbPlaying = false, lbRaf = 0, lbT0 = 0, lbP0 = 0;
+const lbCanvas = document.getElementById('lbCanvas'), lbPlayBtn = document.getElementById('lbPlayBtn');
+const lbScrub = document.getElementById('lbScrub'), lbSpeed = document.getElementById('lbSpeed');
+const lbBlock = document.getElementById('lbBlock');
+function playDuration() {
+  const n = lbDesign ? lbDesign.stitches.length : 0;
+  return Math.min(40000, Math.max(4000, n * 4)) / Number(lbSpeed.value);
+}
+function drawPlayback() {
+  if (!lbDesign) return;
+  if (lbProgress >= 1) {
+    // Finished: show the full design with its normal look.
+    renderToCanvas(lbCanvas, lbDesign);
+    lbBlock.textContent = '';
+  } else {
+    const n = Math.floor(lbProgress * lbDesign.stitches.length);
+    const cur = drawProgress(lbCanvas, lbDesign, n);
+    const blocks = lbDesign.stitches.reduce((a, p) => a + (p.colorChange ? 1 : 0), 1);
+    lbBlock.textContent = `Colour ${cur + 1} of ${blocks} · stitch ${n.toLocaleString()} of ${lbDesign.stitches.length.toLocaleString()}`;
+  }
+  lbScrub.value = Math.round(lbProgress * 1000);
+}
+function stopPlayback() {
+  lbPlaying = false; cancelAnimationFrame(lbRaf);
+  lbPlayBtn.textContent = lbProgress >= 1 ? '↻ Replay' : '▶ Play';
+}
+function frame(now) {
+  if (!lbPlaying) return;
+  lbProgress = Math.min(1, lbP0 + (now - lbT0) / playDuration());
+  drawPlayback();
+  if (lbProgress >= 1) { stopPlayback(); return; }
+  lbRaf = requestAnimationFrame(frame);
+}
+function startPlayback() {
+  if (!lbDesign) return;
+  if (lbProgress >= 1) lbProgress = 0;
+  lbPlaying = true; lbPlayBtn.textContent = '❚❚ Pause';
+  lbP0 = lbProgress; lbT0 = performance.now();
+  lbRaf = requestAnimationFrame(frame);
+}
+lbPlayBtn.addEventListener('click', () => lbPlaying ? stopPlayback() : startPlayback());
+lbScrub.addEventListener('input', () => {
+  lbProgress = Number(lbScrub.value) / 1000;
+  if (lbPlaying) { lbP0 = lbProgress; lbT0 = performance.now(); }
+  else lbPlayBtn.textContent = lbProgress >= 1 ? '↻ Replay' : '▶ Play';
+  drawPlayback();
+});
+lbSpeed.addEventListener('change', () => { if (lbPlaying) { lbP0 = lbProgress; lbT0 = performance.now(); } });
+
 async function openLightbox(item) {
   const { fileRef } = item, token = ++lbToken;
+  stopPlayback(); lbDesign = null; lbProgress = 1; lbScrub.value = 1000; lbBlock.textContent = '';
   const canvas = document.getElementById('lbCanvas');
   canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
   document.getElementById('lbName').textContent = fileRef.name;
@@ -745,6 +867,7 @@ async function openLightbox(item) {
     const design = parseFile(fileRef.name, await readWithTimeout(fileRef.read, READ_TIMEOUT_MS));
     if (token !== lbToken) return;
     lbInfo = renderToCanvas(canvas, design);
+    lbDesign = design; lbPlayBtn.textContent = '↻ Replay';
     renderStats();
     document.getElementById('lbSub').textContent = fileRef.path;
   } catch (e) {
@@ -752,8 +875,8 @@ async function openLightbox(item) {
   }
 }
 lightbox.addEventListener('click', e => {
-  if (e.target.closest('.lb-controls')) return;
-  lbToken++; lightbox.classList.remove('open');
+  if (e.target.closest('.lb-controls, .lb-play')) return;
+  lbToken++; stopPlayback(); lightbox.classList.remove('open');
 });
 </script>
 </body>
