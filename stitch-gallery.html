@@ -117,6 +117,8 @@
   #views .trow .vicon { width: 14px; text-align: center; color: var(--muted); font-size: 11px; }
   .data-tools { display: flex; gap: 6px; padding: 14px 10px 6px; }
   .data-tools button { font-size: 12px; padding: 5px 10px; }
+  .saved-note { font-size: 11px; line-height: 1.45; color: var(--muted); margin: 0; padding: 4px 10px 12px; }
+  .saved-note.warn { color: #b23a5b; }
   #lightbox .lb-favrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin-top: 10px; }
   #lightbox .lb-favrow button.lb-fav { width: 30px; height: 30px; padding: 0; border-radius: 50%; background: transparent;
     color: var(--muted); border: 1px solid var(--border); font-size: 16px; line-height: 1; }
@@ -142,6 +144,7 @@
       <button id="exportSavedBtn" class="secondary" title="Save favorites and recolors to a file">Export saved</button>
       <button id="importSavedBtn" class="secondary" title="Load favorites and recolors from an export">Import saved</button>
     </div>
+    <p class="saved-note" id="savedNote"></p>
     <input type="file" id="importSavedInput" accept="application/json,.json" style="display:none">
   </div>
   <div id="content">
@@ -723,12 +726,35 @@ const metaReady = idb('meta', 'readonly', st => st.getAll()).then(rows => { for 
 const metaFor = (path, size) => { const r = metaMap.get(path); return r && (size == null || r.size === size) ? r : null; };
 const metaEmpty = r => !r.fav && !(r.recolor || []).some(Boolean);
 
+// Tells the user, once and without blocking anything, where saved data lives and
+// when it is lost. If the browser will not store anything (private window,
+// blocked storage), say so plainly instead of pretending the save worked.
+const savedNote = document.getElementById('savedNote');
+let storageOk = true, savedNoticeShown = false;
+const NOTE_OK = 'Favorites and recolors are saved in this browser on this computer. They are lost if you clear site data, use a private window, open the gallery in another browser, or move this file. Export saved keeps a copy.';
+const NOTE_OFF = 'This window cannot save anything (private window or blocked storage). Favorites and recolors are forgotten when you close the page. Export saved keeps a copy.';
+function checkStorage() {
+  return openDb().then(db => {
+    storageOk = !!db;
+    savedNote.textContent = storageOk ? NOTE_OK : NOTE_OFF;
+    savedNote.classList.toggle('warn', !storageOk);
+  });
+}
+checkStorage();
+function noteFirstSave() {
+  if (savedNoticeShown) return;
+  savedNoticeShown = true;
+  statusEl.textContent = storageOk
+    ? 'Saved in this browser only. Clearing site data, switching browsers or moving this file loses it. Export saved keeps a copy.'
+    : 'Not saved: this window cannot store data, so it is kept only until you close the page. Export saved keeps a copy.';
+}
+
 function saveMeta(path, size, patch, quiet) {
   const r = metaFor(path, size) || { path, size, fav: false, recolor: [] };
   Object.assign(r, patch, { size });
   if (metaEmpty(r)) { metaMap.delete(path); idb('meta', 'readwrite', st => st.delete(path)); }
   else { metaMap.set(path, r); idb('meta', 'readwrite', st => st.put(r, path)); }
-  if (!quiet) refreshViews();
+  if (!quiet) { refreshViews(); noteFirstSave(); }
   return r;
 }
 async function itemSize(item) {

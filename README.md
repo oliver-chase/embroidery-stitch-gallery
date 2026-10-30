@@ -40,6 +40,8 @@ Click the star on a card, or in the preview, to favorite a design. The **Favorit
 
 Favorites and recolors are stored in your browser, keyed by file path and file size. They come back when you reopen the page in the same browser and link the same folder. **Clear cache** leaves them alone. A file replaced by one of a different size starts clean.
 
+The gallery says this in the sidebar, and shows a one-time message the first time you save something. If your browser cannot store data at all (a private window, for example), the sidebar says so and the message tells you the change lasts only until you close the page. Nothing is blocked either way.
+
 **Export saved** writes a JSON file with your favorites and recolors. **Import saved** loads one, so you can move them to another computer that has the same folder layout.
 
 ### Check a design's details
