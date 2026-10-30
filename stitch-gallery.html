@@ -115,8 +115,6 @@
     background: rgba(255,255,255,0.92); color: var(--muted); border: 1px solid var(--border); font-size: 15px; line-height: 1; }
   .fav.on { color: #d49a00; border-color: #d49a00; }
   #views .trow .vicon { width: 14px; text-align: center; color: var(--muted); font-size: 11px; }
-  .data-tools { display: flex; gap: 6px; padding: 14px 10px 6px; }
-  .data-tools button { font-size: 12px; padding: 5px 10px; }
   .saved-note { font-size: 11px; line-height: 1.45; color: var(--muted); margin: 0; padding: 4px 10px 12px; }
   .saved-note.warn { color: #b23a5b; }
   #lightbox .lb-favrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin-top: 10px; }
@@ -140,12 +138,7 @@
     <div id="views"></div>
     <div class="tree-label">Folders</div>
     <div id="tree"></div>
-    <div class="data-tools">
-      <button id="exportSavedBtn" class="secondary" title="Save favorites and recolors to a file">Export saved</button>
-      <button id="importSavedBtn" class="secondary" title="Load favorites and recolors from an export">Import saved</button>
-    </div>
     <p class="saved-note" id="savedNote"></p>
-    <input type="file" id="importSavedInput" accept="application/json,.json" style="display:none">
   </div>
   <div id="content">
     <div id="dropWrap">
@@ -720,7 +713,7 @@ offerReopen();
 // One small record per design, keyed by path and holding the file size, so a
 // replaced file (different size) starts clean. Kept in its own IndexedDB store,
 // which Clear cache leaves alone. Recolors live here too, so a design looks the
-// same in the grid, the preview and an export.
+// same in the grid and the preview.
 const metaMap = new Map();   // path -> { path, size, fav, recolor }
 const metaReady = idb('meta', 'readonly', st => st.getAll()).then(rows => { for (const r of rows || []) metaMap.set(r.path, r); });
 const metaFor = (path, size) => { const r = metaMap.get(path); return r && (size == null || r.size === size) ? r : null; };
@@ -731,8 +724,8 @@ const metaEmpty = r => !r.fav && !(r.recolor || []).some(Boolean);
 // blocked storage), say so plainly instead of pretending the save worked.
 const savedNote = document.getElementById('savedNote');
 let storageOk = true, savedNoticeShown = false;
-const NOTE_OK = 'Favorites and recolors are saved in this browser on this computer. They are lost if you clear site data, use a private window, open the gallery in another browser, or move this file. Export saved keeps a copy.';
-const NOTE_OFF = 'This window cannot save anything (private window or blocked storage). Favorites and recolors are forgotten when you close the page. Export saved keeps a copy.';
+const NOTE_OK = 'Favorites and recolors are saved in this browser on this computer. They are lost if you clear site data, use a private window, open the gallery in another browser, or move this file.';
+const NOTE_OFF = 'This window cannot save anything (private window or blocked storage). Favorites and recolors are forgotten when you close the page.';
 function checkStorage() {
   return openDb().then(db => {
     storageOk = !!db;
@@ -745,16 +738,16 @@ function noteFirstSave() {
   if (savedNoticeShown) return;
   savedNoticeShown = true;
   statusEl.textContent = storageOk
-    ? 'Saved in this browser only. Clearing site data, switching browsers or moving this file loses it. Export saved keeps a copy.'
-    : 'Not saved: this window cannot store data, so it is kept only until you close the page. Export saved keeps a copy.';
+    ? 'Saved in this browser only. Clearing site data, switching browsers or moving this file loses it.'
+    : 'Not saved: this window cannot store data, so it is kept only until you close the page.';
 }
 
-function saveMeta(path, size, patch, quiet) {
+function saveMeta(path, size, patch) {
   const r = metaFor(path, size) || { path, size, fav: false, recolor: [] };
   Object.assign(r, patch, { size });
   if (metaEmpty(r)) { metaMap.delete(path); idb('meta', 'readwrite', st => st.delete(path)); }
   else { metaMap.set(path, r); idb('meta', 'readwrite', st => st.put(r, path)); }
-  if (!quiet) { refreshViews(); noteFirstSave(); }
+  refreshViews(); noteFirstSave();
   return r;
 }
 async function itemSize(item) {
@@ -792,41 +785,6 @@ function showFavorites() {
   refreshViews();
   showGrid([], files, `${files.length} designs in Favorites`, true);
 }
-function reshowCurrent() {
-  if (searchEl.value.trim()) runSearch();
-  else if (activeView) showFavorites();
-  else navigateTo(currentPath);
-}
-
-// Export and import. The file carries path, size, favorite and recolors,
-// so it works on another computer that has the same library folder.
-document.getElementById('exportSavedBtn').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify({ app: 'stitch-gallery', version: 1, designs: [...metaMap.values()] }, null, 1)], { type: 'application/json' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'stitch-gallery-saved.json';
-  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  statusEl.textContent = `Exported ${metaMap.size} designs with favorites or recolors.`;
-});
-const importInput = document.getElementById('importSavedInput');
-document.getElementById('importSavedBtn').addEventListener('click', () => importInput.click());
-importInput.addEventListener('change', async () => {
-  const file = importInput.files[0]; importInput.value = '';
-  if (!file) return;
-  let data;
-  try { data = JSON.parse(await file.text()); } catch (e) { data = null; }
-  if (!data || data.app !== 'stitch-gallery' || !Array.isArray(data.designs)) {
-    statusEl.textContent = 'That file is not a Stitch Gallery export.'; return;
-  }
-  await metaReady;
-  let n = 0;
-  for (const d of data.designs) {
-    if (!d || typeof d.path !== 'string' || !Number.isFinite(d.size)) continue;
-    const recolor = (Array.isArray(d.recolor) ? d.recolor : []).slice(0, 256).map(c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) ? c.toLowerCase() : null);
-    saveMeta(d.path, d.size, { fav: d.fav === true, recolor }, true); n++;
-  }
-  refreshViews(); reshowCurrent();
-  statusEl.textContent = `Imported ${n} designs.`;
-});
-
 // ---------------- SEARCH ----------------
 // Matches on file names from the tree built at load time, so searching never
 // reads a file. Every word in the query must appear in the name or folder path.

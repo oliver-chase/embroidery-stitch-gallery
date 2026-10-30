@@ -32,17 +32,15 @@ Open a design and click a colored dot under the slider to choose a color block. 
 
 Tick **Show jumps** to draw the travel moves between stitch runs as dashed red lines. Recolors work during playback and are saved with the design, so the grid thumbnail and the preview show them after a reload.
 
-Recoloring changes only how the gallery draws the design. Your `.dst` and `.pes` files are never modified, and the new colors are stored in your browser and in the export file. To get a recolored design into a stitch file, change the thread in your embroidery software.
+Recoloring changes only how the gallery draws the design. Your `.dst` and `.pes` files are never modified, and the new colors are stored in your browser. To get a recolored design into a stitch file, change the thread in your embroidery software.
 
 ### Favorite designs
 
 Click the star on a card, or in the preview, to favorite a design. The **Favorites** row in the sidebar shows every favorite from all folders, with a count.
 
-Favorites and recolors are stored in your browser, keyed by file path and file size. They come back when you reopen the page in the same browser and link the same folder. **Clear cache** leaves them alone. A file replaced by one of a different size starts clean.
+Favorites and recolors are stored in your browser, keyed by file path and file size. They come back when you reopen the page in the same browser and link the same folder. They are lost if you clear site data, use a private window, open the gallery in another browser, or move the HTML file. **Clear cache** leaves them alone. A file replaced by one of a different size starts clean.
 
 The gallery says this in the sidebar, and shows a one-time message the first time you save something. If your browser cannot store data at all (a private window, for example), the sidebar says so and the message tells you the change lasts only until you close the page. Nothing is blocked either way.
-
-**Export saved** writes a JSON file with your favorites and recolors. **Import saved** loads one, so you can move them to another computer that has the same folder layout.
 
 ### Check a design's details
 
