@@ -114,17 +114,12 @@
   .card .fav { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; padding: 0; border-radius: 50%;
     background: rgba(255,255,255,0.92); color: var(--muted); border: 1px solid var(--border); font-size: 15px; line-height: 1; }
   .fav.on { color: #d49a00; border-color: #d49a00; }
-  .card .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-  .chip { font-size: 10px; padding: 1px 7px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); }
-  .chip.add { background: transparent; border: 1px dashed var(--border); color: var(--muted); cursor: pointer; }
-  .chip button.rm { all: unset; cursor: pointer; margin-left: 2px; }
   #views .trow .vicon { width: 14px; text-align: center; color: var(--muted); font-size: 11px; }
   .data-tools { display: flex; gap: 6px; padding: 14px 10px 6px; }
   .data-tools button { font-size: 12px; padding: 5px 10px; }
-  #lightbox .lb-tagrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin-top: 10px; }
-  #lightbox .lb-tagrow button.lb-fav { width: 30px; height: 30px; padding: 0; border-radius: 50%; background: transparent;
+  #lightbox .lb-favrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin-top: 10px; }
+  #lightbox .lb-favrow button.lb-fav { width: 30px; height: 30px; padding: 0; border-radius: 50%; background: transparent;
     color: var(--muted); border: 1px solid var(--border); font-size: 16px; line-height: 1; }
-  #lightbox .lb-tagrow input { font: inherit; font-size: 12px; padding: 4px 8px; width: 120px; border: 1px solid var(--border); border-radius: 6px; }
 </style>
 </head>
 <body>
@@ -144,10 +139,10 @@
     <div class="tree-label">Folders</div>
     <div id="tree"></div>
     <div class="data-tools">
-      <button id="exportTagsBtn" class="secondary" title="Save tags, favorites and recolors to a file">Export tags</button>
-      <button id="importTagsBtn" class="secondary" title="Load tags, favorites and recolors from an export">Import tags</button>
+      <button id="exportSavedBtn" class="secondary" title="Save favorites and recolors to a file">Export saved</button>
+      <button id="importSavedBtn" class="secondary" title="Load favorites and recolors from an export">Import saved</button>
     </div>
-    <input type="file" id="importTagsInput" accept="application/json,.json" style="display:none">
+    <input type="file" id="importSavedInput" accept="application/json,.json" style="display:none">
   </div>
   <div id="content">
     <div id="dropWrap">
@@ -172,11 +167,8 @@
   <div class="inner">
     <canvas id="lbCanvas" width="600" height="600"></canvas>
     <div class="lb-meta" id="lbName"></div>
-    <div class="lb-tagrow" id="lbTagRow">
+    <div class="lb-favrow" id="lbFavRow">
       <button type="button" id="lbFav" class="lb-fav" aria-pressed="false" title="Favorite" disabled>☆</button>
-      <span id="lbTags"></span>
-      <input id="lbTagInput" list="tagList" placeholder="Add tag…" maxlength="40" autocomplete="off" aria-label="Add a tag" disabled>
-      <datalist id="tagList"></datalist>
     </div>
     <div class="lb-play" id="lbPlay">
       <button type="button" id="lbPlayBtn" aria-label="Play">▶ Play</button>
@@ -424,7 +416,7 @@ function renderToCanvas(canvas, design) {
 
 // ---------------- TREE MODEL ----------------
 let root = null, totalFiles = 0, currentPath = null, allFiles = [];
-let activeView = null;               // { kind: 'fav' | 'tag', value } while a saved view is open
+let activeView = null;               // 'fav' while the Favorites view is open
 function newNode(name, path) { return { name, path, folders: new Map(), files: [] }; }
 function initRoot(rootName) { root = newNode(rootName || 'Designs', rootName || 'Designs'); totalFiles = 0; allFiles = []; }
 function insertFile(fileRef) {
@@ -579,11 +571,10 @@ function makeDesignCardShell(fileRef, showPath) {
   }
   const subEl = document.createElement('div'); subEl.className = 'sub'; subEl.textContent = 'loading…'; meta.appendChild(subEl);
 
-  const tagsEl = document.createElement('div'); tagsEl.className = 'tags'; meta.appendChild(tagsEl);
   const favEl = document.createElement('button'); favEl.type = 'button'; favEl.className = 'fav'; favEl.title = 'Favorite';
   card.appendChild(favEl);
 
-  const item = { fileRef, card, canvas, subEl, tagsEl, favEl, size: null, info: null, state: 'idle' };
+  const item = { fileRef, card, canvas, subEl, favEl, size: null, info: null, state: 'idle' };
   card._item = item;
   grid.appendChild(card);
   card.addEventListener('click', () => openLightbox(item));
@@ -722,20 +713,18 @@ clearCacheBtn.addEventListener('click', async () => {
 });
 offerReopen();
 
-// ---------------- TAGS, FAVORITES, RECOLORS ----------------
+// ---------------- FAVORITES, RECOLORS ----------------
 // One small record per design, keyed by path and holding the file size, so a
 // replaced file (different size) starts clean. Kept in its own IndexedDB store,
 // which Clear cache leaves alone. Recolors live here too, so a design looks the
 // same in the grid, the preview and an export.
-const metaMap = new Map();   // path -> { path, size, fav, tags, recolor }
+const metaMap = new Map();   // path -> { path, size, fav, recolor }
 const metaReady = idb('meta', 'readonly', st => st.getAll()).then(rows => { for (const r of rows || []) metaMap.set(r.path, r); });
 const metaFor = (path, size) => { const r = metaMap.get(path); return r && (size == null || r.size === size) ? r : null; };
-const metaEmpty = r => !r.fav && !r.tags.length && !r.recolor.some(Boolean);
-const normTag = t => t.trim().replace(/\s+/g, ' ').toLowerCase();
-const MAX_TAGS = 30;
+const metaEmpty = r => !r.fav && !(r.recolor || []).some(Boolean);
 
 function saveMeta(path, size, patch, quiet) {
-  const r = metaFor(path, size) || { path, size, fav: false, tags: [], recolor: [] };
+  const r = metaFor(path, size) || { path, size, fav: false, recolor: [] };
   Object.assign(r, patch, { size });
   if (metaEmpty(r)) { metaMap.delete(path); idb('meta', 'readwrite', st => st.delete(path)); }
   else { metaMap.set(path, r); idb('meta', 'readwrite', st => st.put(r, path)); }
@@ -752,85 +741,61 @@ function paintCardMeta(item) {
   const on = !!(r && r.fav);
   item.favEl.textContent = on ? '★' : '☆'; item.favEl.classList.toggle('on', on);
   item.favEl.setAttribute('aria-pressed', String(on));
-  item.tagsEl.textContent = '';
-  for (const t of (r ? r.tags : [])) {
-    const c = document.createElement('span'); c.className = 'chip'; c.textContent = t; item.tagsEl.append(c);
-  }
-  const add = document.createElement('span'); add.className = 'chip add'; add.textContent = '+ tag'; add.title = 'Edit tags';
-  add.addEventListener('click', e => { e.stopPropagation(); openLightbox(item); lbTagInput.focus(); });
-  item.tagsEl.append(add);
 }
 
-// Saved views in the sidebar: Favorites and one row per tag in use.
-const viewsEl = document.getElementById('views'), tagListEl = document.getElementById('tagList');
+// The Favorites row in the sidebar, with a count of favorited designs in this library.
+const viewsEl = document.getElementById('views');
 function refreshViews() {
-  const favs = [], counts = new Map();
-  for (const f of allFiles) {
-    const r = metaMap.get(f.path); if (!r) continue;
-    if (r.fav) favs.push(f);
-    for (const t of r.tags) counts.set(t, (counts.get(t) || 0) + 1);
-  }
+  const count = allFiles.reduce((n, f) => n + (metaMap.get(f.path)?.fav ? 1 : 0), 0);
   viewsEl.textContent = '';
-  const row = (icon, label, n, kind, value) => {
-    const el = document.createElement('div'); el.className = 'trow'; el.dataset.path = 'view:' + kind + ':' + value;
-    const ic = document.createElement('span'); ic.className = 'vicon'; ic.textContent = icon;
-    const lb = document.createElement('span'); lb.textContent = label;
-    const ct = document.createElement('span'); ct.className = 'tcount'; ct.textContent = n;
-    el.append(ic, lb, ct);
-    el.classList.toggle('active', !!activeView && activeView.kind === kind && activeView.value === value);
-    el.addEventListener('click', () => showView(kind, value));
-    viewsEl.append(el);
-  };
-  row('★', 'Favorites', favs.length, 'fav', '');
-  for (const [t, n] of [...counts].sort((a, b) => a[0].localeCompare(b[0]))) row('#', t, n, 'tag', t);
-  tagListEl.textContent = '';
-  for (const t of new Set([...metaMap.values()].flatMap(r => r.tags))) {
-    const o = document.createElement('option'); o.value = t; tagListEl.append(o);
-  }
+  const el = document.createElement('div'); el.className = 'trow'; el.dataset.path = 'view:fav';
+  const ic = document.createElement('span'); ic.className = 'vicon'; ic.textContent = '★';
+  const lb = document.createElement('span'); lb.textContent = 'Favorites';
+  const ct = document.createElement('span'); ct.className = 'tcount'; ct.textContent = count;
+  el.append(ic, lb, ct);
+  el.classList.toggle('active', activeView === 'fav');
+  el.addEventListener('click', showFavorites);
+  viewsEl.append(el);
 }
-function showView(kind, value) {
+function showFavorites() {
   searchEl.value = '';
-  const files = allFiles.filter(f => {
-    const r = metaMap.get(f.path);
-    return r && (kind === 'fav' ? r.fav : r.tags.includes(value));
-  }).sort((a, b) => a.name.localeCompare(b.name));
-  activeView = { kind, value };
+  const files = allFiles.filter(f => metaMap.get(f.path)?.fav).sort((a, b) => a.name.localeCompare(b.name));
+  activeView = 'fav';
   setActiveTreeRow(null);
-  breadcrumb.style.display = 'block'; breadcrumb.textContent = kind === 'fav' ? 'Favorites' : `Tag: ${value}`;
+  breadcrumb.style.display = 'block'; breadcrumb.textContent = 'Favorites';
   refreshViews();
-  showGrid([], files, `${files.length} designs in ${kind === 'fav' ? 'Favorites' : 'tag "' + value + '"'}`, true);
+  showGrid([], files, `${files.length} designs in Favorites`, true);
 }
 function reshowCurrent() {
   if (searchEl.value.trim()) runSearch();
-  else if (activeView) showView(activeView.kind, activeView.value);
+  else if (activeView) showFavorites();
   else navigateTo(currentPath);
 }
 
-// Export and import. The file carries path, size, favorite, tags and recolors,
+// Export and import. The file carries path, size, favorite and recolors,
 // so it works on another computer that has the same library folder.
-document.getElementById('exportTagsBtn').addEventListener('click', () => {
+document.getElementById('exportSavedBtn').addEventListener('click', () => {
   const blob = new Blob([JSON.stringify({ app: 'stitch-gallery', version: 1, designs: [...metaMap.values()] }, null, 1)], { type: 'application/json' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'stitch-gallery-tags.json';
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'stitch-gallery-saved.json';
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  statusEl.textContent = `Exported ${metaMap.size} designs with tags, favorites or recolors.`;
+  statusEl.textContent = `Exported ${metaMap.size} designs with favorites or recolors.`;
 });
-const importInput = document.getElementById('importTagsInput');
-document.getElementById('importTagsBtn').addEventListener('click', () => importInput.click());
+const importInput = document.getElementById('importSavedInput');
+document.getElementById('importSavedBtn').addEventListener('click', () => importInput.click());
 importInput.addEventListener('change', async () => {
   const file = importInput.files[0]; importInput.value = '';
   if (!file) return;
   let data;
   try { data = JSON.parse(await file.text()); } catch (e) { data = null; }
   if (!data || data.app !== 'stitch-gallery' || !Array.isArray(data.designs)) {
-    statusEl.textContent = 'That file is not a Stitch Gallery tag export.'; return;
+    statusEl.textContent = 'That file is not a Stitch Gallery export.'; return;
   }
   await metaReady;
   let n = 0;
   for (const d of data.designs) {
     if (!d || typeof d.path !== 'string' || !Number.isFinite(d.size)) continue;
-    const tags = [...new Set((Array.isArray(d.tags) ? d.tags : []).filter(t => typeof t === 'string').map(normTag).filter(Boolean))].slice(0, MAX_TAGS);
     const recolor = (Array.isArray(d.recolor) ? d.recolor : []).slice(0, 256).map(c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) ? c.toLowerCase() : null);
-    saveMeta(d.path, d.size, { fav: d.fav === true, tags, recolor }, true); n++;
+    saveMeta(d.path, d.size, { fav: d.fav === true, recolor }, true); n++;
   }
   refreshViews(); reshowCurrent();
   statusEl.textContent = `Imported ${n} designs.`;
@@ -844,10 +809,7 @@ let searchTimer = 0;
 function runSearch() {
   const words = searchEl.value.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) { navigateTo(currentPath); return; }
-  const hits = allFiles.filter(f => {
-    const r = metaMap.get(f.path), hay = f.path.toLowerCase() + ' ' + (r ? r.tags.join(' ') : '');
-    return words.every(w => hay.includes(w));
-  })
+  const hits = allFiles.filter(f => { const hay = f.path.toLowerCase(); return words.every(w => hay.includes(w)); })
     .sort((a, b) => a.name.localeCompare(b.name));
   setActiveTreeRow(null);
   breadcrumb.style.display = 'block'; breadcrumb.textContent = 'Search results';
@@ -1110,22 +1072,14 @@ document.getElementById('lbResetColors').addEventListener('click', () => {
 lbJumps.addEventListener('change', () => { if (lbDesign) { lbDesign.showJumps = lbJumps.checked; drawPlayback(); } });
 document.getElementById('lbColors').addEventListener('click', e => e.stopPropagation());
 
-// ---- Favorite, tags and saved recolors for the open design ----
-const lbFav = document.getElementById('lbFav'), lbTags = document.getElementById('lbTags'), lbTagInput = document.getElementById('lbTagInput');
+// ---- Favorite and saved recolors for the open design ----
+const lbFav = document.getElementById('lbFav');
 let lbItem = null, lbSize = null, lbRecolorDirty = false;
 function lbRecord() { return lbItem && lbSize != null ? metaFor(lbItem.fileRef.path, lbSize) : null; }
 function renderLbMeta() {
   const r = lbRecord(), on = !!(r && r.fav);
   lbFav.textContent = on ? '★' : '☆'; lbFav.classList.toggle('on', on); lbFav.setAttribute('aria-pressed', String(on));
-  lbFav.disabled = lbTagInput.disabled = lbSize == null;
-  lbTags.textContent = '';
-  for (const t of (r ? r.tags : [])) {
-    const c = document.createElement('span'); c.className = 'chip'; c.textContent = t + ' ';
-    const x = document.createElement('button'); x.type = 'button'; x.className = 'rm'; x.textContent = '×';
-    x.setAttribute('aria-label', 'Remove tag ' + t);
-    x.addEventListener('click', () => changeLbMeta({ tags: r.tags.filter(y => y !== t) }));
-    c.append(x); lbTags.append(c);
-  }
+  lbFav.disabled = lbSize == null;
 }
 function changeLbMeta(patch) {
   if (!lbItem || lbSize == null) return;
@@ -1138,19 +1092,7 @@ function persistRecolor() {
   lbRecolorDirty = true;
 }
 lbFav.addEventListener('click', () => { const r = lbRecord(); changeLbMeta({ fav: !(r && r.fav) }); });
-lbTagInput.addEventListener('keydown', e => {
-  if (e.key !== 'Enter' && e.key !== ',') return;
-  e.preventDefault();
-  // "plaid, quilt" adds two tags; a typed comma commits what came before it.
-  const r = lbRecord(), tags = [...(r ? r.tags : [])];
-  for (const part of lbTagInput.value.split(',')) {
-    const t = normTag(part);
-    if (t && !tags.includes(t) && tags.length < MAX_TAGS) tags.push(t);
-  }
-  if (!r || tags.length !== r.tags.length) changeLbMeta({ tags });
-  lbTagInput.value = '';
-});
-document.getElementById('lbTagRow').addEventListener('click', e => e.stopPropagation());
+document.getElementById('lbFavRow').addEventListener('click', e => e.stopPropagation());
 function closeLightbox() {
   lbToken++; stopPlayback(); lightbox.classList.remove('open');
   // A recolor changes the saved thumbnail key, so redraw that card from the file.
@@ -1162,7 +1104,7 @@ async function openLightbox(item) {
   const { fileRef } = item, token = ++lbToken;
   stopPlayback(); lbDesign = null; lbProgress = 1; lbScrub.value = 1000; lbBlock.textContent = '';
   lbJumps.checked = false; buildSwatches();
-  lbItem = item; lbSize = item.size; lbRecolorDirty = false; lbTagInput.value = ''; renderLbMeta();
+  lbItem = item; lbSize = item.size; lbRecolorDirty = false; renderLbMeta();
   const canvas = document.getElementById('lbCanvas');
   canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
   document.getElementById('lbName').textContent = fileRef.name;

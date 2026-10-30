@@ -32,17 +32,15 @@ Open a design and click a colored dot under the slider to choose a color block. 
 
 Tick **Show jumps** to draw the travel moves between stitch runs as dashed red lines. Recolors work during playback and are saved with the design, so the grid thumbnail and the preview show them after a reload.
 
-Recoloring changes only how the gallery draws the design. Your `.dst` and `.pes` files are never modified, and the new colors are stored in your browser and in the tag export file. To get a recolored design into a stitch file, change the thread in your embroidery software.
+Recoloring changes only how the gallery draws the design. Your `.dst` and `.pes` files are never modified, and the new colors are stored in your browser and in the export file. To get a recolored design into a stitch file, change the thread in your embroidery software.
 
-### Tag and favorite designs
+### Favorite designs
 
-Click the star on a card to favorite it. Open a design and type in **Add tag…** to tag it. Press Enter to add the tag, or type a comma between several, such as `halloween, fall`. Tags show on the card, and search matches them.
+Click the star on a card, or in the preview, to favorite a design. The **Favorites** row in the sidebar shows every favorite from all folders, with a count.
 
-The **Saved** list in the sidebar has Favorites and one row per tag, each with a count. Click a row to see those designs from every folder.
+Favorites and recolors are stored in your browser, keyed by file path and file size. They come back when you reopen the page in the same browser and link the same folder. **Clear cache** leaves them alone. A file replaced by one of a different size starts clean.
 
-Tags, favorites and recolors are stored in your browser, keyed by file path and file size. **Clear cache** leaves them alone. A file replaced by one of a different size starts with no tags.
-
-**Export tags** saves a JSON file with all of it. **Import tags** loads one, so you can move your tags to another computer that has the same folder layout.
+**Export saved** writes a JSON file with your favorites and recolors. **Import saved** loads one, so you can move them to another computer that has the same folder layout.
 
 ### Check a design's details
 
@@ -91,7 +89,7 @@ If your embroidery files are stored in the cloud, make the folder available offl
 | `.dst` | Tajima commercial format. Stitch data is supported; the format does not contain thread colors, so previews use stand-in colors. |
 | `.pes` | Brother / Babylock format. Embedded thread colors are read from the standard PEC thread palette.                             |
 
-These formats are listed with a "preview not supported yet" note and can still be tagged and favorited, but not previewed: `.jef`, `.exp`, `.vp3`, `.hus`, `.xxx`, `.sew`, `.pec`, `.vip`, `.shv`, `.pcs` and `.emd`.
+These formats are listed with a "preview not supported yet" note and can still be favorited, but not previewed: `.jef`, `.exp`, `.vp3`, `.hus`, `.xxx`, `.sew`, `.pec`, `.vip`, `.shv`, `.pcs` and `.emd`.
 
 Unsupported files still appear in the gallery, but show a **can't preview** placeholder.
 
