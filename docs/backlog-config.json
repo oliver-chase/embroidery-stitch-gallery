@@ -1,0 +1,13 @@
+{
+  "repoOwner": "oliver-chase",
+  "repoName": "embroidery-stitch-gallery",
+  "projectOwner": "oliver-chase",
+  "projectNumber": 22,
+  "projectId": "PVT_kwHOCyeGV84BpVsB",
+  "fields": {
+    "status": {"id": "PVTSSF_lAHOCyeGV84BpVsBzhnxxDA", "options": {"Backlog": "f75ad846", "Ready": "84c52abc", "In Progress": "47fc9ee4", "QA": "fa5f8661", "Complete": "98236657"}},
+    "priority": {"id": "PVTSSF_lAHOCyeGV84BpVsBzhnxxKA", "options": {"P0": "b03da43b", "P1": "b5a76618", "P2": "5edd08a9"}},
+    "size": {"id": "PVTSSF_lAHOCyeGV84BpVsBzhnxxKg", "options": {"XS": "e8b8b074", "S": "0c9ec17b", "M": "7efefb97", "L": "c8a31b7f", "XL": "6043953f"}},
+    "workType": {"id": "PVTSSF_lAHOCyeGV84BpVsBzhoSF8Y", "options": {"Epic": "95376505", "Story": "314e12bc"}}
+  }
+}
