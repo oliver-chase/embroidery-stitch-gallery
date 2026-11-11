@@ -16,11 +16,11 @@ Click a folder in the sidebar or a folder tile in the grid to open it. Breadcrum
 
 ### See the actual designs
 
-Stitch Gallery draws the **real needle path** from each embroidery file instead of showing a generic icon.
+Stitch Gallery draws the **real needle path** from each embroidery file.
 
-It handles jump and trim stitches so designs render as separate stitch paths instead of looking like tangled lines.
+It handles jump and trim stitches so each design renders as separate stitch paths.
 
-For `.pes` files, it also reads the embedded thread colors and uses those colors in the preview. `.dst` files do not contain color information, so each color block gets a stand-in thread color. Those colors are placeholders, not the real thread.
+For `.pes` files, it also reads the embedded thread colors and uses those colors in the preview. `.dst` files contain no color information, so each color block gets a stand-in thread color that you can recolor.
 
 ### Step through a folder
 
@@ -50,10 +50,10 @@ The gallery says this in the sidebar, and shows a one-time message the first tim
 
 Click a design to see its stitch count, color changes, number of thread colors, jumps, size in millimeters, thread length and an estimated run time.
 
-* **Run time** is the stitch count at your machine speed, plus 20 seconds for each color change. The default is 1,000 stitches per minute. Change **Machine speed** under the preview and the gallery remembers it.
-* **Thread length** counts only real stitches, not the travel between sections.
-* `.dst` files have color-change codes but no thread colors, so Colors reads "not in file".
-* Trims are not counted separately yet, so run time can read a few seconds short for designs with many trims.
+* **Run time** is the stitch count at your machine speed, plus 20 seconds for each color change. The default is 1,000 stitches per minute. Change **Machine speed** under the preview and the gallery remembers it
+* **Thread length** counts real stitches and leaves out the travel between sections
+* `.dst` files have color-change codes but no thread colors, so Colors reads "not in file"
+* Trims are not counted separately yet, so run time can read a few seconds short for designs with many trims
 
 ### Sort a folder
 
@@ -109,22 +109,22 @@ Unsupported files still appear in the gallery, but show a **can't preview** plac
 
 Everything runs from a single HTML file with inline CSS and JavaScript. There is no server, build process, or external library.
 
-* A hand-written binary parser reads DST and PEC/PES stitch data directly.
-* A folder-tree model preserves the real folder structure.
-* The File System Access API reads folder and file names without immediately reading every file's contents. Stitch data is read only when needed, which prevents cloud-backed folders from stalling during the initial scan.
-* Each design is drawn to an HTML canvas, scaled to fit the preview, and colored using its embedded thread palette when one is available, or stand-in colors when it has none.
-* Cards render only near the visible part of the page. Cards that scroll far away release their canvas, so a folder of thousands of designs stays light.
-* Drag-and-drop provides a fallback when live folder access is unavailable.
+* A hand-written binary parser reads DST and PEC/PES stitch data directly
+* A folder-tree model preserves the real folder structure
+* The File System Access API reads folder and file names without immediately reading every file's contents. Stitch data is read only when needed, which prevents cloud-backed folders from stalling during the initial scan
+* Each design is drawn to an HTML canvas, scaled to fit the preview, and colored using its embedded thread palette when one is available, or stand-in colors when it has none
+* Cards render only near the visible part of the page. Cards that scroll far away release their canvas, so a folder of thousands of designs stays light
+* Drag-and-drop provides a fallback when live folder access is unavailable
 
 ---
 
 ## Known limits
 
-* Only `.dst` and `.pes` files are currently parsed.
-* Thread colors require a `.pes` file with an embedded color table.
-* `.dst` colors are placeholders, because DST contains no color data.
-* Folder selection works best in Chromium-based browsers such as Chrome and Edge.
-* Firefox and Safari fall back to a standard file picker and do not provide the same live folder-tree access. They have not been tested.
+* Only `.dst` and `.pes` files are currently parsed
+* Thread colors require a `.pes` file with an embedded color table
+* `.dst` colors are placeholders, because DST contains no color data
+* Folder selection works best in Chromium-based browsers such as Chrome and Edge
+* Firefox and Safari fall back to a standard file picker and do not provide the same live folder-tree access. They have not been tested
 
 The result is a simple workflow: **point Stitch Gallery at an existing embroidery folder, and immediately see the designs inside it without changing, uploading, or reorganizing your files.**
 
@@ -132,18 +132,10 @@ The result is a simple workflow: **point Stitch Gallery at an existing embroider
 
 ## Tests
 
-The gallery needs nothing installed. The tests are for anyone changing the file readers. They use the test runner built into Node (18 or newer; run here on Node 24) and need no packages.
+The gallery needs nothing installed. The tests are for anyone changing the file readers. They use the test runner built into Node 18 or newer and need no packages.
 
 ```bash
-node --test tests/*.test.mjs
+bash scripts/validate.sh
 ```
 
-The tests load the readers straight out of `stitch-gallery.html` and check them against small sample files in `tests/fixtures`. The samples are built from known stitches, so they contain no one's real designs. They cover stitch positions, jumps, color changes, the thread palette, the flipped DST axis and the size limits of both formats. `node tests/make-fixtures.mjs` rebuilds the sample files.
-
-To check a real folder, run the same readers over it:
-
-```bash
-node tests/audit-library.mjs "/path/to/embroidery folder"
-```
-
-It lists files that fail to read, come out empty or measure over a metre. It skips cloud-only files, so it never downloads anything.
+The tests load the readers straight out of `stitch-gallery.html` and check them against sample designs they build from known stitches, so they contain no one's real designs. They cover stitch positions, jumps, color changes, the thread palette, the flipped DST axis and the size limits of both formats.
