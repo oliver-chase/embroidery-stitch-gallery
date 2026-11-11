@@ -113,6 +113,7 @@
   #lightbox .lb-controls input { width: 64px; margin-left: 6px; }
 
   .card { position: relative; }
+  .card:focus-visible, .folder-card:focus-visible, .trow:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .card .fav { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; padding: 0; border-radius: 50%;
     background: rgba(255,255,255,0.92); color: var(--muted); border: 1px solid var(--border); font-size: 15px; line-height: 1; }
   .fav.on { color: #d49a00; border-color: #d49a00; }
@@ -171,9 +172,9 @@
 </div>
 
 <input type="file" id="fileInput" webkitdirectory directory multiple style="display:none">
-<input type="file" id="fileInputFlat" multiple accept=".dst,.pes,.jef,.exp,.vp3,.hus,.xxx,.sew,.pec,.vip,.shv,.pcs,.emd" style="display:none">
+<input type="file" id="fileInputFlat" multiple style="display:none">
 
-<div id="lightbox">
+<div id="lightbox" role="dialog" aria-modal="true" aria-label="Design preview">
   <div class="inner">
     <canvas id="lbCanvas" width="600" height="600"></canvas>
     <div class="lb-meta" id="lbName"></div>
@@ -338,6 +339,8 @@ function layoutFor(canvas, design) {
   };
 }
 
+const isJumpMove = (p, prev, d) => p.jump || (prev && (Math.abs(p.x-prev.x) > d || Math.abs(p.y-prev.y) > d));
+
 // Optional "show jumps": a dashed red line for each pen-up move, drawn between
 // the stitch runs and restoring the pen afterwards.
 function drawJump(ctx, x0, y0, x1, y1) {
@@ -371,7 +374,7 @@ function drawProgress(canvas, design, upTo) {
   for (let i = 0; i < n; i++) {
     const p = pts[i];
     if (p.colorChange) { ctx.stroke(); block++; prev = null; startBlock(); continue; }
-    const isJump = p.jump || (prev && (Math.abs(p.x-prev.x) > jumpDist || Math.abs(p.y-prev.y) > jumpDist));
+    const isJump = isJumpMove(p, prev, jumpDist);
     if (isJump && prev && design.showJumps) drawJump(ctx, tx(prev.x), ty(prev.y), tx(p.x), ty(p.y));
     else if (isJump || prev === null) ctx.moveTo(tx(p.x), ty(p.y)); else ctx.lineTo(tx(p.x), ty(p.y));
     prev = last = p;
@@ -411,7 +414,7 @@ function renderToCanvas(canvas, design) {
       ctx.beginPath(); prev = null; continue;
     }
     const cx = tx(p.x), cy = ty(p.y);
-    const isJump = p.jump || (prev && (Math.abs(p.x-prev.x) > jumpDist || Math.abs(p.y-prev.y) > jumpDist));
+    const isJump = isJumpMove(p, prev, jumpDist);
     if (isJump && prev && design.showJumps) drawJump(ctx, tx(prev.x), ty(prev.y), cx, cy);
     else if (isJump || prev === null) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
     stitchCount++;
@@ -467,8 +470,14 @@ const SUPPORTED = ['dst', 'pes'];
 // folder of 400 files never shows a gallery of 250 with no explanation.
 const LISTED_ONLY = ['jef', 'exp', 'vp3', 'hus', 'xxx', 'sew', 'pec', 'vip', 'shv', 'pcs', 'emd'];
 const extOf = name => name.split('.').pop().toLowerCase();
+document.getElementById('fileInputFlat').accept = [...SUPPORTED, ...LISTED_ONLY].map(e => '.' + e).join(',');
 function supported(name) { return SUPPORTED.includes(extOf(name)) || LISTED_ONLY.includes(extOf(name)); }
 
+// Makes a clickable div reachable from the keyboard: Tab focuses it, Enter or Space activates it.
+function activatable(el, fn) {
+  el.tabIndex = 0; el.setAttribute('role', 'button');
+  el.addEventListener('keydown', e => { if (e.target === el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); fn(); } });
+}
 function buildTreeSidebar() { treeEl.innerHTML = ''; treeEl.appendChild(renderTreeNode(root, 0)); sidebar.style.display = 'block'; }
 function renderTreeNode(node, depth) {
   const wrap = document.createElement('div'); wrap.className = 'tnode';
@@ -485,10 +494,11 @@ function renderTreeNode(node, depth) {
   for (const child of sorted) childrenWrap.appendChild(renderTreeNode(child, depth+1));
   wrap.appendChild(childrenWrap);
   caret.addEventListener('click', e => { e.stopPropagation(); caret.classList.toggle('open'); childrenWrap.classList.toggle('open'); });
-  row.addEventListener('click', () => {
+  const openRow = () => {
     if (hasChildren && !childrenWrap.classList.contains('open')) { caret.classList.add('open'); childrenWrap.classList.add('open'); }
     navigateTo(node.path);
-  });
+  };
+  row.addEventListener('click', openRow); activatable(row, openRow);
   if (depth === 0) { caret.classList.add('open'); childrenWrap.classList.add('open'); }
   return wrap;
 }
@@ -609,7 +619,7 @@ function showGrid(folders, files, statusText, showPath) {
     const nm = document.createElement('div'); nm.className='fname'; nm.textContent=child.name;
     const sb = document.createElement('div'); sb.className='fsub'; sb.textContent = countFilesDeep(child) + ' designs';
     fc.appendChild(ic); fc.appendChild(nm); fc.appendChild(sb);
-    fc.addEventListener('click', () => navigateTo(child.path));
+    fc.addEventListener('click', () => navigateTo(child.path)); activatable(fc, () => navigateTo(child.path));
     grid.appendChild(fc);
   }
   for (const fileRef of files) cur.observer.observe(makeDesignCardShell(fileRef, showPath).card);
@@ -642,7 +652,7 @@ function makeDesignCardShell(fileRef, showPath) {
   const item = { fileRef, card, canvas, subEl, favEl, size: null, info: null, state: 'idle' };
   card._item = item;
   grid.appendChild(card);
-  card.addEventListener('click', () => openLightbox(item));
+  card.addEventListener('click', () => openLightbox(item)); activatable(card, () => openLightbox(item));
   favEl.addEventListener('click', async e => {
     e.stopPropagation();
     try {
@@ -672,6 +682,8 @@ function infoText(info) {
 async function renderCard(item, cur) {
   const { fileRef, card, canvas, subEl } = item;
   try {
+    // A listed-only format has no parser, so never read its file just to say so.
+    if (LISTED_ONLY.includes(extOf(fileRef.name))) throw new Error('Unsupported');
     // size + modified time are available without downloading a cloud file
     const m = await readWithTimeout(fileRef.meta, READ_TIMEOUT_MS);
     await metaReady;
@@ -842,7 +854,7 @@ function refreshViews() {
   const ct = document.createElement('span'); ct.className = 'tcount'; ct.textContent = count;
   el.append(ic, lb, ct);
   el.classList.toggle('active', activeView === 'fav');
-  el.addEventListener('click', showFavorites);
+  el.addEventListener('click', showFavorites); activatable(el, showFavorites);
   viewsEl.append(el);
 }
 function showFavorites() {
@@ -1080,7 +1092,7 @@ lbSpeed.addEventListener('change', () => { if (lbPlaying) { lbP0 = lbProgress; l
 
 // ---- Recolor ----
 // Pick a colour block, then a thread from the palette or a custom colour.
-// Changes live on the open design only; they are not saved yet.
+// Each change is saved with the design through persistRecolor.
 const lbSwatches = document.getElementById('lbSwatches'), lbPalette = document.getElementById('lbPalette');
 const lbCustom = document.getElementById('lbCustom'), lbJumps = document.getElementById('lbJumps');
 let lbSel = 0;
@@ -1148,6 +1160,7 @@ lbFav.addEventListener('click', () => { const r = lbRecord(); changeLbMeta({ fav
 document.getElementById('lbFavRow').addEventListener('click', e => e.stopPropagation());
 function closeLightbox() {
   lbToken++; stopPlayback(); lightbox.classList.remove('open');
+  if (lbItem && lbItem.card.isConnected) lbItem.card.focus({ preventScroll: true });
   // A recolor changes the saved thumbnail key, so redraw that card from the file.
   if (lbRecolorDirty && lbItem && nav && lbItem.card.isConnected) { lbItem.state = 'queued'; nav.queue.push(lbItem); pump(nav); }
   lbRecolorDirty = false;
@@ -1181,7 +1194,7 @@ async function openLightbox(item) {
   document.getElementById('lbName').textContent = fileRef.name;
   document.getElementById('lbSub').textContent = 'loading…';
   lbInfo = null; renderStats(); lbSpm.value = getSpm();
-  lightbox.classList.add('open');
+  lightbox.classList.add('open'); lbPlayBtn.focus();
   try {
     await metaReady;
     const buffer = await readWithTimeout(fileRef.read, READ_TIMEOUT_MS);
