@@ -1,39 +1,19 @@
 // Run from the repo folder: node --test tests/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   loadParsers, plain, DST_STEPS, PES_STEPS, PES_COLORS,
   expectedPoints, encodeDst, encodePes, dstRecord,
 } from './helpers.mjs';
 
 const { parseDST, parsePES, parseFile, PEC_PALETTE } = loadParsers();
-const fixture = name => fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', name));
+const sampleDst = () => encodeDst(DST_STEPS), samplePes = () => encodePes(PES_STEPS, PES_COLORS);
 const ab = buf => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
-const bounds = pts => {
-  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
-  return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
-};
-
-test('fixtures on disk match what the builders produce', () => {
-  assert.deepEqual(fixture('sample.dst'), encodeDst(DST_STEPS));
-  assert.deepEqual(fixture('sample.pes'), encodePes(PES_STEPS, PES_COLORS));
-});
 
 // ---------------- DST ----------------
-test('DST: the sample file gives every stitch, jump and colour change in order', () => {
-  const d = parseDST(ab(fixture('sample.dst')));
+test('DST: the sample design gives every stitch, jump and colour change in order', () => {
+  const d = parseDST(ab(sampleDst()));
   assert.deepEqual(plain(d.stitches), plain(expectedPoints(DST_STEPS, 'dst')));
-});
-
-test('DST: stitch count and bounds', () => {
-  const d = parseDST(ab(fixture('sample.dst')));
-  assert.equal(d.stitches.length, DST_STEPS.length);
-  assert.equal(d.stitches.filter(p => p.colorChange).length, 1);
-  assert.equal(d.stitches.filter(p => p.jump && !p.colorChange).length, 1);
-  assert.deepEqual(bounds(d.stitches), bounds(expectedPoints(DST_STEPS, 'dst')));
 });
 
 test('DST: the file counts y upward, so the parsed y is flipped for the screen', () => {
@@ -59,20 +39,13 @@ test('DST: a header with no stitches gives an empty design', () => {
 });
 
 // ---------------- PES ----------------
-test('PES: the sample file gives every stitch, jump and colour change in order', () => {
-  const d = parsePES(ab(fixture('sample.pes')));
+test('PES: the sample design gives every stitch, jump and colour change in order', () => {
+  const d = parsePES(ab(samplePes()));
   assert.deepEqual(plain(d.stitches), plain(expectedPoints(PES_STEPS, 'pes')));
 });
 
-test('PES: stitch count, colour change count and bounds', () => {
-  const d = parsePES(ab(fixture('sample.pes')));
-  assert.equal(d.stitches.length, PES_STEPS.length);
-  assert.equal(d.stitches.filter(p => p.colorChange).length, PES_COLORS.length - 1);
-  assert.deepEqual(bounds(d.stitches), bounds(expectedPoints(PES_STEPS, 'pes')));
-});
-
 test('PES: thread colours come from the standard PEC palette', () => {
-  const d = parsePES(ab(fixture('sample.pes')));
+  const d = parsePES(ab(samplePes()));
   assert.deepEqual(plain(d.colors), PES_COLORS.map(i => PEC_PALETTE[i]));
   assert.deepEqual(plain(d.colors), ['#ed171f', '#0e1f7c']);
 });
@@ -106,13 +79,13 @@ test('PES: short and long coordinate forms agree at the boundary', () => {
 });
 
 test('PES: a file that is not a PES is rejected', () => {
-  assert.throws(() => parsePES(ab(fixture('sample.dst'))), /Not a PES file/);
+  assert.throws(() => parsePES(ab(sampleDst())), /Not a PES file/);
 });
 
 // ---------------- dispatch ----------------
 test('parseFile picks the parser from the extension, in any letter case', () => {
-  assert.equal(parseFile('x.DST', ab(fixture('sample.dst'))).stitches.length, DST_STEPS.length);
-  assert.equal(parseFile('x.Pes', ab(fixture('sample.pes'))).stitches.length, PES_STEPS.length);
+  assert.equal(parseFile('x.DST', ab(sampleDst())).stitches.length, DST_STEPS.length);
+  assert.equal(parseFile('x.Pes', ab(samplePes())).stitches.length, PES_STEPS.length);
 });
 
 test('parseFile refuses formats it cannot read', () => {
