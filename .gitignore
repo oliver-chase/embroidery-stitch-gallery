@@ -1,1 +1,5 @@
 .DS_Store
+
+# iCloud sync-conflict copies ("name 2.ext") are never project files
+* 2
+* 2.*
