@@ -80,6 +80,10 @@
   #drop { margin: auto; padding: 60px; border: 2px dashed var(--border); border-radius: 12px;
     text-align: center; color: var(--muted); background: var(--panel); max-width: 520px; }
   #drop.hover { border-color: var(--accent); background: #fff5fb; }
+  #reopen { margin: 14px 0; }
+  .drop-note { font-size: 12px; }
+  .drop-note.warn { color: #b23a5b; }
+  [hidden] { display: none !important; }
   #drop h2 { color: var(--ink); font-weight: 500; }
   #dropWrap { flex: 1 1 auto; display: flex; }
 
@@ -130,13 +134,13 @@
   <h1>Stitch Gallery</h1>
   <button id="pickBtn">Choose Folder…</button>
   <button id="pickFilesBtn" class="secondary">Or pick files</button>
-  <input id="search" type="search" placeholder="Search designs…  ( / )" aria-label="Search designs by file name" autocomplete="off" style="display:none">
-  <button id="clearCacheBtn" class="secondary" style="display:none" title="Forget cached thumbnails and the remembered folder">Clear cache</button>
+  <input id="search" type="search" placeholder="Search designs…  ( / )" aria-label="Search designs by file name" autocomplete="off" hidden>
+  <button id="clearCacheBtn" class="secondary" hidden title="Forget cached thumbnails and the remembered folder">Clear cache</button>
   <span class="count" id="count"></span>
 </header>
 
 <div id="main">
-  <div id="sidebar" style="display:none">
+  <div id="sidebar" hidden>
     <div class="tree-label">Saved</div>
     <div id="views"></div>
     <div class="tree-label">Folders</div>
@@ -148,13 +152,13 @@
       <div id="drop">
         <h2>Drag your embroidery folder here</h2>
         <p>Or click "Choose Folder…" above. Everything stays on your computer &mdash; nothing is uploaded.</p>
-        <div id="reopen" style="display:none; margin: 14px 0"><button id="reopenBtn"></button></div>
-        <p style="font-size:12px">Previews .dst and .pes files. Other embroidery formats are listed with a "not supported yet" note.</p>
-        <p style="font-size:12px; color:#b23a5b">Using OneDrive / iCloud / Dropbox? Make the folder available offline first for best speed.</p>
+        <div id="reopen" hidden><button id="reopenBtn"></button></div>
+        <p class="drop-note">Previews .dst and .pes files. Other embroidery formats are listed with a "not supported yet" note.</p>
+        <p class="drop-note warn">Using OneDrive / iCloud / Dropbox? Make the folder available offline first for best speed.</p>
       </div>
     </div>
-    <div id="breadcrumb" style="display:none"></div>
-    <div id="sortBar" style="display:none">
+    <div id="breadcrumb" hidden></div>
+    <div id="sortBar" hidden>
       <label>Sort
         <select id="sortSel" aria-label="Sort designs">
           <option value="name-asc">Name A to Z</option>
@@ -171,8 +175,8 @@
   </div>
 </div>
 
-<input type="file" id="fileInput" webkitdirectory directory multiple style="display:none">
-<input type="file" id="fileInputFlat" multiple style="display:none">
+<input type="file" id="fileInput" webkitdirectory directory multiple hidden>
+<input type="file" id="fileInputFlat" multiple hidden>
 
 <div id="lightbox" role="dialog" aria-modal="true" aria-label="Design preview">
   <div class="inner">
@@ -191,11 +195,11 @@
     </div>
     <div class="lb-block" id="lbBlock"></div>
     <div class="lb-colors" id="lbColors">
-      <div class="lb-swatches" id="lbSwatches" aria-label="Colour blocks"></div>
+      <div class="lb-swatches" id="lbSwatches" aria-label="Color blocks"></div>
       <div class="lb-palette" id="lbPalette" aria-label="Thread palette"></div>
       <div class="lb-colorbar">
         <label>Custom <input type="color" id="lbCustom"></label>
-        <button type="button" id="lbResetColors">Reset colours</button>
+        <button type="button" id="lbResetColors">Reset colors</button>
         <label><input type="checkbox" id="lbJumps"> Show jumps</label>
       </div>
     </div>
@@ -236,8 +240,8 @@ function parseDST(buffer) {
 function signed12(b){ b &= 0xFFF; return b > 0x7FF ? b - 0x1000 : b; }
 function signed7(b){ return b > 63 ? b - 128 : b; }
 
-// Standard Brother/PEC thread palette. PES files store a colour as an index
-// into this table, so mapping the index bytes here gives the real thread colours.
+// Standard Brother/PEC thread palette. PES files store a color as an index
+// into this table, so mapping the index bytes here gives the real thread colors.
 const PEC_PALETTE = ["#000000", "#0e1f7c", "#0a55a3", "#008777", "#4b6baf", "#ed171f", "#d15c00", "#913697", "#e49acb", "#915fac", "#9ed67d", "#e8a900", "#feba35", "#ffff00", "#70bc1f", "#ba9800", "#a8a8a8", "#7d6f00", "#ffffb3", "#4f5556", "#000000", "#0b3d91", "#770176", "#293133", "#2a1301", "#f64a8a", "#b27624", "#fcbbc5", "#fe370f", "#f0f0f0", "#6a1c8a", "#a8ddc4", "#2584bb", "#feb343", "#fff36b", "#d0a660", "#d15400", "#66ba49", "#134a46", "#878787", "#d8ccc6", "#435607", "#fdd9de", "#f993bc", "#003822", "#b2afd4", "#686ab0", "#efe3b9", "#f73866", "#b54b64", "#132b1a", "#c70156", "#fe9e32", "#a8deeb", "#00673e", "#4e2990", "#2f7e20", "#ffcccc", "#ffd911", "#095ba6", "#f0f970", "#e3f35b", "#ff9900", "#fff08d", "#ffc8c8"];
 
 function parsePES(buffer) {
@@ -245,7 +249,7 @@ function parsePES(buffer) {
   if (String.fromCharCode(v[0], v[1], v[2], v[3]) !== '#PES') throw new Error('Not a PES file');
   const pecStart = v[8] | (v[9]<<8) | (v[10]<<16) | (v[11]<<24);
   // The offset at PES+8 points at the start of the PEC header ("LA:").
-  // Walk the header to the colour table and the stitch stream.
+  // Walk the header to the color table and the stitch stream.
   let p = pecStart;
   p += 3;                 // "LA:"
   p += 16;                // label
@@ -257,7 +261,7 @@ function parsePES(buffer) {
   const countColors = colorChanges === 0xFF ? 0 : colorChanges + 1;
   const colors = [];
   for (let i = 0; i < countColors; i++) colors.push(PEC_PALETTE[v[p + i] % PEC_PALETTE.length]);
-  p += countColors;       // colour index table
+  p += countColors;       // color index table
   p += (0x1D0 - colorChanges); // seek to stitch-block length field
   p += 3;                 // 3-byte block length (unused)
   p += 11;                // fixed header bytes before stitches
@@ -281,8 +285,8 @@ function parsePES(buffer) {
   }
   return { stitches, colors };
 }
-// DST has colour-change codes but no colours. Give each block a distinct
-// stand-in thread so the colour sections are still visible.
+// DST has color-change codes but no colors. Give each block a distinct
+// stand-in thread so the color sections are still visible.
 const PLACEHOLDER_THREADS = ["#2f2f2f", "#c0392b", "#2e7d32", "#1f5fa8", "#d4a017", "#7b3f9e", "#e07b00", "#00838f"];
 function colorsOf(design) {
   return (design.colors && design.colors.length) ? design.colors : PLACEHOLDER_THREADS;
@@ -353,7 +357,7 @@ function drawJump(ctx, x0, y0, x1, y1) {
 }
 
 // Draws the first `upTo` points of the design, as the machine would have sewn
-// them so far. Finished colour blocks are dimmed and the current block is
+// them so far. Finished color blocks are dimmed and the current block is
 // drawn in full strength with a dot at the needle. Returns the 0-based block.
 function drawProgress(canvas, design, upTo) {
   const ctx = canvas.getContext('2d');
@@ -397,8 +401,8 @@ function renderToCanvas(canvas, design) {
 
   const { spanX, spanY, jumpDist, tx, ty } = layoutFor(canvas, design);
 
-  // colorAt gives each block its recolor, its real thread colour, or a stand-in
-  // thread for formats (like DST) that carry no colour data.
+  // colorAt gives each block its recolor, its real thread color, or a stand-in
+  // thread for formats (like DST) that carry no color data.
   let colorIdx = 0;
   ctx.strokeStyle = colorAt(design, 0); ctx.lineWidth = 1; ctx.lineJoin = 'round';
   let prev = null; ctx.beginPath();
@@ -423,7 +427,7 @@ function renderToCanvas(canvas, design) {
     prev = p;
   }
   ctx.stroke();
-  // Only PES carries a colour table; DST has colour-change codes but no colours.
+  // Only PES carries a color table; DST has color-change codes but no colors.
   const colorCount = (design.colors && design.colors.length) ? new Set(design.colors.slice(0, colorChanges + 1)).size : null;
   return { width: spanX, height: spanY, count: stitchCount, jumps, colorChanges, colorCount, threadMm: threadUnits / 10 };
 }
@@ -478,7 +482,7 @@ function activatable(el, fn) {
   el.tabIndex = 0; el.setAttribute('role', 'button');
   el.addEventListener('keydown', e => { if (e.target === el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); fn(); } });
 }
-function buildTreeSidebar() { treeEl.innerHTML = ''; treeEl.appendChild(renderTreeNode(root, 0)); sidebar.style.display = 'block'; }
+function buildTreeSidebar() { treeEl.innerHTML = ''; treeEl.appendChild(renderTreeNode(root, 0)); sidebar.hidden = false; }
 function renderTreeNode(node, depth) {
   const wrap = document.createElement('div'); wrap.className = 'tnode';
   const row = document.createElement('div'); row.className = 'trow'; row.dataset.path = node.path;
@@ -504,7 +508,7 @@ function renderTreeNode(node, depth) {
 }
 function setActiveTreeRow(path) { document.querySelectorAll('.trow').forEach(r => r.classList.toggle('active', r.dataset.path === path)); }
 function renderBreadcrumb(path) {
-  breadcrumb.style.display = 'block'; breadcrumb.innerHTML = '';
+  breadcrumb.hidden = false; breadcrumb.innerHTML = '';
   const parts = path.split('/').filter(Boolean); let acc = '';
   parts.forEach((part, i) => {
     if (i > 0) { const sep = document.createElement('span'); sep.textContent = '  ›  '; breadcrumb.appendChild(sep); }
@@ -772,7 +776,7 @@ async function offerReopen() {
   const saved = await idb('handles', 'readonly', st => st.get('last'));
   if (!saved || !saved.handle) return;
   reopenBtn.textContent = `Reopen “${saved.handle.name}”`;
-  reopenWrap.style.display = '';
+  reopenWrap.hidden = false;
   reopenBtn.onclick = async () => {
     try {
       let perm = await saved.handle.queryPermission({ mode: 'read' });
@@ -785,7 +789,7 @@ async function offerReopen() {
 clearCacheBtn.addEventListener('click', async () => {
   await idb('thumbs', 'readwrite', st => st.clear());
   await idb('handles', 'readwrite', st => st.clear());
-  reopenWrap.style.display = 'none';
+  reopenWrap.hidden = true;
   statusEl.textContent = 'Cache cleared. Thumbnails rebuild as you browse.';
 });
 offerReopen();
@@ -862,7 +866,7 @@ function showFavorites() {
   const files = allFiles.filter(f => metaMap.get(f.path)?.fav);
   activeView = 'fav';
   setActiveTreeRow(null);
-  breadcrumb.style.display = 'block'; breadcrumb.textContent = 'Favorites';
+  breadcrumb.hidden = false; breadcrumb.textContent = 'Favorites';
   refreshViews();
   showSorted([], files, `${files.length} designs in Favorites`, true);
 }
@@ -876,7 +880,7 @@ function runSearch() {
   if (!words.length) { navigateTo(currentPath); return; }
   const hits = allFiles.filter(f => { const hay = f.path.toLowerCase(); return words.every(w => hay.includes(w)); });
   setActiveTreeRow(null);
-  breadcrumb.style.display = 'block'; breadcrumb.textContent = 'Search results';
+  breadcrumb.hidden = false; breadcrumb.textContent = 'Search results';
   showSorted([], hits, `${hits.length} of ${allFiles.length} designs match "${searchEl.value.trim()}"`, true);
 }
 searchEl.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 120); });
@@ -884,7 +888,7 @@ searchEl.addEventListener('keydown', e => {
   if (e.key === 'Escape') { clearTimeout(searchTimer); searchEl.value = ''; searchEl.blur(); navigateTo(currentPath); }
 });
 document.addEventListener('keydown', e => {
-  if (e.key === '/' && searchEl.style.display !== 'none' && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) {
+  if (e.key === '/' && !searchEl.hidden && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) {
     e.preventDefault(); searchEl.focus();
   }
 });
@@ -896,9 +900,9 @@ document.addEventListener('keydown', e => {
 // (OneDrive/iCloud/Dropbox) from stalling, since we don't force every
 // placeholder file to download just to build the library.
 function finishLoading() {
-  dropWrap.style.display = 'none';
-  searchEl.style.display = ''; searchEl.value = ''; clearCacheBtn.style.display = '';
-  document.getElementById('sortBar').style.display = '';
+  dropWrap.hidden = true;
+  searchEl.hidden = false; searchEl.value = ''; clearCacheBtn.hidden = false;
+  document.getElementById('sortBar').hidden = false;
   countEl.textContent = `${totalFiles} designs`;
   buildTreeSidebar();
   metaReady.then(refreshViews);
@@ -907,7 +911,7 @@ function finishLoading() {
 }
 
 async function loadDirectoryHandle(dirHandle) {
-  dropWrap.style.display = 'none'; statusEl.textContent = 'Scanning folder structure…';
+  dropWrap.hidden = true; statusEl.textContent = 'Scanning folder structure…';
   initRoot(dirHandle.name);
   async function walk(handle, prefix) {
     for await (const entry of handle.values()) {
@@ -933,7 +937,7 @@ async function loadDirectoryHandle(dirHandle) {
 async function loadFiles(files) {
   const list = Array.from(files).filter(f => supported(f.name));
   if (!list.length) { statusEl.textContent = 'No embroidery files found.'; return; }
-  dropWrap.style.display = 'none'; statusEl.textContent = 'Scanning folder structure…';
+  dropWrap.hidden = true; statusEl.textContent = 'Scanning folder structure…';
   const first = list[0].webkitRelativePath || list[0].name;
   const rootName = first.includes('/') ? first.split('/')[0] : 'Designs';
   initRoot(rootName);
@@ -949,7 +953,7 @@ async function loadDrop(items) {
   const roots = [];
   for (const item of items) { const entry = item.webkitGetAsEntry && item.webkitGetAsEntry(); if (entry) roots.push(entry); }
   if (!roots.length) return false;
-  dropWrap.style.display = 'none'; statusEl.textContent = 'Scanning folder structure…';
+  dropWrap.hidden = true; statusEl.textContent = 'Scanning folder structure…';
   const rootName = (roots.length === 1 && roots[0].isDirectory) ? roots[0].name : 'Designs';
   initRoot(rootName);
   async function traverse(entry, prefix) {
@@ -998,7 +1002,7 @@ const lbStats = document.getElementById('lbStats'), lbSpm = document.getElementB
 let lbToken = 0, lbInfo = null;
 
 // Estimated run time: stitching at the machine speed, plus a fixed pause for
-// each colour change (thread swap and re-start).
+// each color change (thread swap and re-start).
 const COLOR_CHANGE_SECONDS = 20, DEFAULT_SPM = 1000;
 function getSpm() {
   try { const v = parseInt(localStorage.getItem('stitch-gallery-spm'), 10); if (v >= 100 && v <= 2000) return v; } catch (e) {}
@@ -1017,8 +1021,8 @@ function renderStats() {
   const i = lbInfo;
   const rows = [
     ['Stitches', i.count.toLocaleString()],
-    ['Colour changes', String(i.colorChanges)],
-    ['Colours', i.colorCount === null ? 'not in file' : String(i.colorCount)],
+    ['Color changes', String(i.colorChanges)],
+    ['Colors', i.colorCount === null ? 'not in file' : String(i.colorCount)],
     ['Jumps', i.jumps.toLocaleString()],
     ['Size', `${(i.width / 10).toFixed(1)} × ${(i.height / 10).toFixed(1)} mm`],
     ['Thread length', formatThread(i.threadMm)],
@@ -1059,7 +1063,7 @@ function drawPlayback() {
     const n = Math.floor(lbProgress * lbDesign.stitches.length);
     const cur = drawProgress(lbCanvas, lbDesign, n);
     const blocks = lbDesign.stitches.reduce((a, p) => a + (p.colorChange ? 1 : 0), 1);
-    lbBlock.textContent = `Colour ${cur + 1} of ${blocks} · stitch ${n.toLocaleString()} of ${lbDesign.stitches.length.toLocaleString()}`;
+    lbBlock.textContent = `Color ${cur + 1} of ${blocks} · stitch ${n.toLocaleString()} of ${lbDesign.stitches.length.toLocaleString()}`;
   }
   lbScrub.value = Math.round(lbProgress * 1000);
 }
@@ -1091,7 +1095,7 @@ lbScrub.addEventListener('input', () => {
 lbSpeed.addEventListener('change', () => { if (lbPlaying) { lbP0 = lbProgress; lbT0 = performance.now(); } });
 
 // ---- Recolor ----
-// Pick a colour block, then a thread from the palette or a custom colour.
+// Pick a color block, then a thread from the palette or a custom color.
 // Each change is saved with the design through persistRecolor.
 const lbSwatches = document.getElementById('lbSwatches'), lbPalette = document.getElementById('lbPalette');
 const lbCustom = document.getElementById('lbCustom'), lbJumps = document.getElementById('lbJumps');
@@ -1106,7 +1110,7 @@ function buildSwatches() {
   if (!lbDesign) return;
   for (let i = 0, n = blockCount(lbDesign); i < n; i++) {
     const b = document.createElement('button');
-    b.type = 'button'; b.className = 'sw'; b.title = `Colour ${i + 1}`;
+    b.type = 'button'; b.className = 'sw'; b.title = `Color ${i + 1}`;
     b.style.background = colorAt(lbDesign, i);
     b.addEventListener('click', () => { lbSel = i; markSwatch(); });
     lbSwatches.append(b);

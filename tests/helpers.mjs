@@ -42,7 +42,7 @@ export const PES_STEPS = [
 ];
 
 // What the parsers should return for those steps. DST flips y (the file counts
-// upward, the screen counts downward), and its colour-change record also reads
+// upward, the screen counts downward), and its color-change record also reads
 // as a jump. PES keeps y as stored.
 export function expectedPoints(steps, format) {
   const dst = format === 'dst';
@@ -103,7 +103,7 @@ export function encodePes(steps, colorIndexes) {
   stitches.push(0xFF, 0x00);
   const pec = Buffer.alloc(528 + stitches.length);          // stitch data starts 528 bytes into the PEC block
   pec.write('LA:', 0, 'latin1'); pec.write('FIXTURE', 3, 'latin1');
-  pec[48] = colorIndexes.length - 1;                        // colour changes = colours - 1
+  pec[48] = colorIndexes.length - 1;                        // color changes = colors - 1
   colorIndexes.forEach((c, i) => { pec[49 + i] = c; });
   Buffer.from(stitches).copy(pec, 528);
   const head = Buffer.alloc(12);

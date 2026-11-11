@@ -32,7 +32,7 @@ Open a design and press **Play** to watch it stitch in order, as the machine wou
 
 ### Recolor a design
 
-Open a design and click a colored dot under the slider to choose a color block. Then click a thread from the palette, or use **Custom** to pick any color. This is the quickest way to give a `.dst` design real colors. **Reset colours** puts the original colors back.
+Open a design and click a colored dot under the slider to choose a color block. Then click a thread from the palette, or use **Custom** to pick any color. This is the quickest way to give a `.dst` design real colors. **Reset colors** puts the original colors back.
 
 Tick **Show jumps** to draw the travel moves between stitch runs as dashed red lines. Recolors work during playback and are saved with the design, so the grid thumbnail and the preview show them after a reload.
 

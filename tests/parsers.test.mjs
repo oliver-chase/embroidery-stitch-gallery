@@ -11,7 +11,7 @@ const sampleDst = () => encodeDst(DST_STEPS), samplePes = () => encodePes(PES_ST
 const ab = buf => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
 
 // ---------------- DST ----------------
-test('DST: the sample design gives every stitch, jump and colour change in order', () => {
+test('DST: the sample design gives every stitch, jump and color change in order', () => {
   const d = parseDST(ab(sampleDst()));
   assert.deepEqual(plain(d.stitches), plain(expectedPoints(DST_STEPS, 'dst')));
 });
@@ -39,12 +39,12 @@ test('DST: a header with no stitches gives an empty design', () => {
 });
 
 // ---------------- PES ----------------
-test('PES: the sample design gives every stitch, jump and colour change in order', () => {
+test('PES: the sample design gives every stitch, jump and color change in order', () => {
   const d = parsePES(ab(samplePes()));
   assert.deepEqual(plain(d.stitches), plain(expectedPoints(PES_STEPS, 'pes')));
 });
 
-test('PES: thread colours come from the standard PEC palette', () => {
+test('PES: thread colors come from the standard PEC palette', () => {
   const d = parsePES(ab(samplePes()));
   assert.deepEqual(plain(d.colors), PES_COLORS.map(i => PEC_PALETTE[i]));
   assert.deepEqual(plain(d.colors), ['#ed171f', '#0e1f7c']);
