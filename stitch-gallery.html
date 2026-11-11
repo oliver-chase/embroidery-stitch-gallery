@@ -44,6 +44,18 @@
   .caret { width: 14px; text-align: center; color: var(--muted); transition: transform 0.1s; font-size: 10px; }
   .caret.open { transform: rotate(90deg); }
   .caret.leaf { visibility: hidden; }
+  #menuBtn { display: none; }
+  @media (max-width: 700px) {
+    header { flex-wrap: wrap; padding: 8px 14px; gap: 8px; }
+    header button { padding: 5px 10px; font-size: 13px; }
+    header .count { margin-left: 0; }
+    #search { flex: 1 1 100%; width: auto; max-width: none; order: 5; }
+    #menuBtn { display: inline-block; }
+    #sidebar { position: fixed; top: 0; bottom: 0; left: 0; z-index: 60; transform: translateX(-100%); transition: transform 0.15s; box-shadow: 2px 0 12px rgba(0,0,0,0.15); }
+    #sidebar.open { transform: none; }
+    #grid { padding: 12px 14px 32px; gap: 12px; }
+    #breadcrumb, #sortBar, #status { padding-left: 14px; padding-right: 14px; }
+  }
   .tchildren { margin-left: 14px; display: none; }
   .tchildren.open { display: block; }
   .tcount { color: var(--muted); font-size: 11px; margin-left: auto; padding-left: 8px; }
@@ -133,6 +145,7 @@
 <body>
 <header>
   <h1>Stitch Gallery</h1>
+  <button id="menuBtn" class="secondary" hidden aria-expanded="false">Folders</button>
   <button id="pickBtn">Choose Folder…</button>
   <button id="pickFilesBtn" class="secondary">Or pick files</button>
   <input id="search" type="search" placeholder="Search designs…  ( / )" aria-label="Search designs by file name" autocomplete="off" hidden>
@@ -471,6 +484,9 @@ const countEl = document.getElementById('count');
 const sidebar = document.getElementById('sidebar');
 const treeEl = document.getElementById('tree');
 const breadcrumb = document.getElementById('breadcrumb');
+const menuBtn = document.getElementById('menuBtn');
+// On a narrow screen the folder list is a drawer that slides in from the Folders button.
+menuBtn.addEventListener('click', () => menuBtn.setAttribute('aria-expanded', sidebar.classList.toggle('open')));
 const SUPPORTED = ['dst', 'pes'];
 // Other embroidery formats are listed too, as "not supported yet" cards, so a
 // folder of 400 files never shows a gallery of 250 with no explanation.
@@ -599,6 +615,7 @@ sortSel.addEventListener('change', () => {
 
 // Draws folder tiles, then design cards that fill in lazily.
 function showGrid(folders, files, statusText, showPath) {
+  sidebar.classList.remove('open'); menuBtn.setAttribute('aria-expanded', 'false');
   const gen = ++navGen;
   if (nav) nav.observer.disconnect();
   grid.innerHTML = '';
@@ -906,14 +923,18 @@ function finishLoading() {
   searchEl.hidden = false; searchEl.value = ''; clearCacheBtn.hidden = false;
   document.getElementById('sortBar').hidden = false;
   countEl.textContent = `${totalFiles} designs`;
-  buildTreeSidebar();
+  buildTreeSidebar(); menuBtn.hidden = false;
   metaReady.then(refreshViews);
   navigateTo(root.path);
   statusEl.textContent = '';
 }
 
 // A scan that finds nothing or throws returns to the start screen with a message, never a blank page.
-function scanEnded(message) { dropWrap.hidden = false; statusEl.textContent = message; }
+function scanEnded(message) {
+  dropWrap.hidden = false; statusEl.textContent = message;
+  for (const el of [sidebar, breadcrumb, searchEl, clearCacheBtn, menuBtn, document.getElementById('sortBar')]) el.hidden = true;
+  grid.innerHTML = ''; countEl.textContent = '';   // no stale library from an earlier folder
+}
 async function loadDirectoryHandle(dirHandle) {
   dropWrap.hidden = true; statusEl.textContent = 'Scanning folder structure…';
   initRoot(dirHandle.name);
@@ -976,7 +997,7 @@ async function loadDrop(items) {
       }
     } else if (entry.isDirectory) {
       const reader = entry.createReader();
-      const readBatch = () => new Promise(res => reader.readEntries(res));
+      const readBatch = () => new Promise((res, rej) => reader.readEntries(res, rej));
       let batch;
       do { batch = await readBatch(); for (const en of batch) await traverse(en, prefix + entry.name + '/'); } while (batch.length > 0);
     }
@@ -1213,6 +1234,11 @@ async function openLightbox(item) {
   lightbox.classList.add('open'); lbPlayBtn.focus();
   try {
     await metaReady;
+    if (LISTED_ONLY.includes(extOf(fileRef.name))) {   // no parser: show the note without reading the file
+      lbSize = await itemSize(item); renderLbMeta();
+      document.getElementById('lbSub').textContent = `Can't preview · preview not supported yet · ${fileRef.path}`;
+      return;
+    }
     const buffer = await readWithTimeout(fileRef.read, READ_TIMEOUT_MS);
     if (token !== lbToken) return;
     lbSize = item.size = buffer.byteLength;

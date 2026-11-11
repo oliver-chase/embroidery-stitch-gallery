@@ -12,7 +12,7 @@ There is nothing to install, no server to run, and no file upload. The entire ap
 
 The sidebar mirrors your actual folder structure. Expand and collapse folders, see how many designs each contains, and move through the hierarchy without reorganizing your files.
 
-Click a folder in the sidebar or a folder tile in the grid to open it. Breadcrumbs let you jump back to any parent folder.
+Click a folder in the sidebar or a folder tile in the grid to open it. Breadcrumbs let you jump back to any parent folder. On a window narrower than 700 pixels, such as a phone, the folder list opens from the **Folders** button and closes when you pick a folder.
 
 ### See the actual designs
 
