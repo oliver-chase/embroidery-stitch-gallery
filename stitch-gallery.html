@@ -6,7 +6,7 @@
 <title>Stitch Gallery</title>
 <style>
   :root {
-    --bg: #fff7fc; --panel: #ffffff; --ink: #2b2b2b; --muted: #8c7a88;
+    --bg: #fff7fc; --panel: #ffffff; --ink: #2b2b2b; --muted: #725f6f;
     --accent: #a63d8a; --accent-fill: #ffd6f3; --accent-soft: #fff0fa; --border: #f3dcec; --fabric: #fffafe;
   }
   * { box-sizing: border-box; }
@@ -93,6 +93,7 @@
   #lightbox .inner { background: var(--panel); border-radius: 12px; padding: 20px;
     max-width: 90vw; max-height: 90vh; overflow-y: auto; text-align: center; }
   #lightbox canvas { background: var(--fabric); border-radius: 8px; max-width: 70vw; max-height: 46vh; }
+  #lightbox .lb-close { display: block; margin: 0 0 10px auto; }
   #lightbox .lb-meta { margin-top: 12px; font-size: 14px; }
   #lightbox .lb-sub { color: var(--muted); font-size: 12px; margin-top: 4px; word-break: break-all; }
   #lightbox .lb-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 16px;
@@ -117,10 +118,10 @@
   #lightbox .lb-controls input { width: 64px; margin-left: 6px; }
 
   .card { position: relative; }
-  .card:focus-visible, .folder-card:focus-visible, .trow:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card .name:focus-visible, .folder-card:focus-visible, .trow:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .card .fav { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; padding: 0; border-radius: 50%;
     background: rgba(255,255,255,0.92); color: var(--muted); border: 1px solid var(--border); font-size: 15px; line-height: 1; }
-  .fav.on { color: #d49a00; border-color: #d49a00; }
+  .fav.on { color: #946800; border-color: #946800; }
   #views .trow .vicon { width: 14px; text-align: center; color: var(--muted); font-size: 11px; }
   .saved-note { font-size: 11px; line-height: 1.45; color: var(--muted); margin: 0; padding: 4px 10px 12px; }
   .saved-note.warn { color: #b23a5b; }
@@ -180,6 +181,7 @@
 
 <div id="lightbox" role="dialog" aria-modal="true" aria-label="Design preview">
   <div class="inner">
+    <button type="button" id="lbClose" class="secondary lb-close" aria-label="Close preview">Close</button>
     <canvas id="lbCanvas" width="600" height="600"></canvas>
     <div class="lb-meta" id="lbName"></div>
     <div class="lb-favrow" id="lbFavRow">
@@ -631,8 +633,8 @@ function showGrid(folders, files, statusText, showPath) {
 }
 
 function makeDesignCardShell(fileRef, showPath) {
-  const card = document.createElement('div'); card.className = 'card';
-  const canvas = document.createElement('canvas'); canvas.width = 0; card.appendChild(canvas);
+  const card = document.createElement('div'); card.className = 'card'; card.setAttribute('role', 'group'); card.setAttribute('aria-label', fileRef.name);
+  const canvas = document.createElement('canvas'); canvas.width = 0; canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', fileRef.name); card.appendChild(canvas);
   const meta = document.createElement('div'); meta.className = 'meta'; card.appendChild(meta);
   const nameEl = document.createElement('div'); nameEl.className = 'name';
   nameEl.textContent = fileRef.name; nameEl.title = fileRef.path; meta.appendChild(nameEl);
@@ -656,7 +658,7 @@ function makeDesignCardShell(fileRef, showPath) {
   const item = { fileRef, card, canvas, subEl, favEl, size: null, info: null, state: 'idle' };
   card._item = item;
   grid.appendChild(card);
-  card.addEventListener('click', () => openLightbox(item)); activatable(card, () => openLightbox(item));
+  card.addEventListener('click', () => openLightbox(item)); activatable(nameEl, () => openLightbox(item));
   favEl.addEventListener('click', async e => {
     e.stopPropagation();
     try {
@@ -910,6 +912,8 @@ function finishLoading() {
   statusEl.textContent = '';
 }
 
+// A scan that finds nothing or throws returns to the start screen with a message, never a blank page.
+function scanEnded(message) { dropWrap.hidden = false; statusEl.textContent = message; }
 async function loadDirectoryHandle(dirHandle) {
   dropWrap.hidden = true; statusEl.textContent = 'Scanning folder structure…';
   initRoot(dirHandle.name);
@@ -930,7 +934,8 @@ async function loadDirectoryHandle(dirHandle) {
       }
     }
   }
-  await walk(dirHandle, dirHandle.name + '/');
+  try { await walk(dirHandle, dirHandle.name + '/'); } catch (e) { return scanEnded('Could not read that folder. Choose it again.'); }
+  if (!totalFiles) return scanEnded('No embroidery files found in that folder. Choose another.');
   finishLoading();
 }
 
@@ -976,7 +981,8 @@ async function loadDrop(items) {
       do { batch = await readBatch(); for (const en of batch) await traverse(en, prefix + entry.name + '/'); } while (batch.length > 0);
     }
   }
-  for (const r of roots) await traverse(r, '');
+  try { for (const r of roots) await traverse(r, ''); } catch (e) { scanEnded('Could not read that folder. Choose it again.'); return true; }
+  if (!totalFiles) { scanEnded('No embroidery files found in that folder. Choose another.'); return true; }
   finishLoading();
   return true;
 }
@@ -1164,7 +1170,7 @@ lbFav.addEventListener('click', () => { const r = lbRecord(); changeLbMeta({ fav
 document.getElementById('lbFavRow').addEventListener('click', e => e.stopPropagation());
 function closeLightbox() {
   lbToken++; stopPlayback(); lightbox.classList.remove('open');
-  if (lbItem && lbItem.card.isConnected) lbItem.card.focus({ preventScroll: true });
+  if (lbItem && lbItem.card.isConnected) lbItem.card.querySelector('.name').focus({ preventScroll: true });
   // A recolor changes the saved thumbnail key, so redraw that card from the file.
   if (lbRecolorDirty && lbItem && nav && lbItem.card.isConnected) { lbItem.state = 'queued'; nav.queue.push(lbItem); pump(nav); }
   lbRecolorDirty = false;
@@ -1176,6 +1182,12 @@ function closeLightbox() {
 document.addEventListener('keydown', e => {
   if (!lightbox.classList.contains('open')) return;
   if (e.key === 'Escape') { e.preventDefault(); closeLightbox(); return; }
+  if (e.key === 'Tab') {            // keep focus inside the open preview
+    const f = [...lightbox.querySelectorAll('button, input, select')].filter(x => !x.disabled && x.offsetParent);
+    const i = f.indexOf(document.activeElement);
+    if (f.length && (e.shiftKey ? i <= 0 : i === f.length - 1)) { e.preventDefault(); f[e.shiftKey ? f.length - 1 : 0].focus(); }
+    return;
+  }
   if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
   if (/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName) || !lbItem) return;
   const side = e.key === 'ArrowRight' ? 'nextElementSibling' : 'previousElementSibling';
@@ -1195,7 +1207,7 @@ async function openLightbox(item) {
   lbItem = item; lbSize = item.size; lbRecolorDirty = false; renderLbMeta();
   const canvas = document.getElementById('lbCanvas');
   canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-  document.getElementById('lbName').textContent = fileRef.name;
+  document.getElementById('lbName').textContent = fileRef.name; canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', fileRef.name);
   document.getElementById('lbSub').textContent = 'loading…';
   lbInfo = null; renderStats(); lbSpm.value = getSpm();
   lightbox.classList.add('open'); lbPlayBtn.focus();
@@ -1208,7 +1220,7 @@ async function openLightbox(item) {
     const saved = metaFor(fileRef.path, lbSize);
     design.recolor = saved ? saved.recolor.slice() : [];
     lbInfo = renderToCanvas(canvas, design);
-    lbDesign = design; lbPlayBtn.textContent = '↻ Replay'; buildSwatches();
+    lbDesign = design; lbPlayBtn.textContent = '▶ Play'; buildSwatches();
     renderLbMeta(); paintCardMeta(item);
     renderStats();
     document.getElementById('lbSub').textContent = fileRef.path;
@@ -1216,10 +1228,9 @@ async function openLightbox(item) {
     if (token === lbToken) document.getElementById('lbSub').textContent = `Can't preview · ${fileRef.path}`;
   }
 }
-lightbox.addEventListener('click', e => {
-  if (e.target.closest('.lb-controls, .lb-play')) return;
-  closeLightbox();
-});
+// Only the dark backdrop and the Close button close the preview, so the path and stats can be selected and copied.
+lightbox.addEventListener('click', e => { if (e.target === lightbox) closeLightbox(); });
+document.getElementById('lbClose').addEventListener('click', closeLightbox);
 </script>
 </body>
 </html>
