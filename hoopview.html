@@ -563,7 +563,7 @@ let sortMode = 'name-asc', sortToken = 0;
 { const v = lsGet('hoopview-sort'); if ([...sortSel.options].some(o => o.value === v)) sortMode = v; }
 sortSel.value = sortMode;
 
-// One size-and-date read per file, shared by the card, the favorite button and the size sort.
+// One size-and-date read per file, shared by the card and the size and date sorts.
 // A failed read is forgotten, so a card that timed out can try again.
 const statOf = fileRef => fileRef._stat || (fileRef._stat = readWithTimeout(fileRef.meta, READ_TIMEOUT_MS).catch(e => { fileRef._stat = null; throw e; }));
 async function readFileStats(fileRef) {

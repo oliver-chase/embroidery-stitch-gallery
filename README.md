@@ -163,4 +163,4 @@ The tests load the readers straight out of `hoopview.html` and check them agains
 * `scripts/` holds the validation command
 * `tests/` holds the parser tests
 * `.githooks/` holds the commit hooks
-* `docs/` holds the catalog, sharing record, accepted audit rows and backlog config
+* `docs/` holds the catalog, sharing record, structure contract, accepted audit rows, audit ledger and backlog config

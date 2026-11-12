@@ -38,6 +38,6 @@ This repo works on `main`.
 
 ## Contract exceptions
 
-- hooks: the repo is one 1,137-line HTML file, and the template's 578-line pre-commit gate suite would be larger than the app. Its own pre-commit runs the tests and the shared commit-msg hook runs unchanged. Expires 2027-05-11
+- hooks: the app is one HTML file of about 1,100 lines, and the template's 578-line pre-commit gate suite would be larger than the app. Its own pre-commit runs the tests and the shared commit-msg hook runs unchanged. Expires 2027-05-11
 - managed-files: the shared scaffold (quality baseline, structure check, size and duplication scripts, workflow) is not installed, for the same reason. Expires 2027-05-11
 - size: no size baseline, because the repo has one app file and the audit's own size check reports it. Expires 2027-05-11
