@@ -361,8 +361,7 @@ function drawProgress(canvas, design, upTo) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const pts = design.stitches, n = Math.max(0, Math.min(upTo, pts.length));
   const { jumpDist, tx, ty } = layoutFor(canvas, design);
-  let current = 0;
-  for (let i = 0; i < n; i++) if (pts[i].colorChange) current++;
+  const current = colorChangesBefore(design, n);
   let block = 0, prev = null, last = null;
   ctx.lineWidth = 1; ctx.lineJoin = 'round';
   const startBlock = () => {
@@ -488,6 +487,7 @@ const SUPPORTED = ['dst', 'pes'];
 // Other embroidery formats are listed too, as "not supported yet" cards, so a
 // folder of 400 files never shows a gallery of 250 with no explanation.
 const LISTED_ONLY = ['jef', 'exp', 'vp3', 'hus', 'xxx', 'sew', 'pec', 'vip', 'shv', 'pcs', 'emd'];
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const extOf = name => name.split('.').pop().toLowerCase();
 const isListedOnly = name => LISTED_ONLY.includes(extOf(name));
 // localStorage can throw in a private window or with blocked storage, so every use goes through these.
@@ -562,7 +562,7 @@ function navigateTo(path) {
   setActiveTreeRow(path); renderBreadcrumb(path);
   const folders = [...node.folders.values()].sort(byName);
   showSorted(folders, node.files,
-    `${folders.length ? folders.length + ' folders · ' : ''}${node.files.length} designs in this folder`);
+    `${folders.length ? plural(folders.length, 'folder') + ' · ' : ''}${plural(node.files.length, 'design')} in this folder`);
 }
 
 // ---- Sorting ----
@@ -582,20 +582,20 @@ const statOf = fileRef => fileRef._stat || (fileRef._stat = readWithTimeout(file
 async function readFileStats(fileRef) {
   if (fileRef.stats) return;
   try { const m = await statOf(fileRef); fileRef.stats = { size: m.size, mtime: m.mtime }; }
-  catch (e) { fileRef.stats = { size: null, mtime: null }; }
+  catch (e) { /* leave stats unset so the next sort reads it again */ }
 }
 function sortedBy(files) {
   const [key, dir] = sortMode.split('-'), sign = dir === 'asc' ? 1 : -1;
   if (key === 'name') return [...files].sort((a, b) => sign * byName(a, b));
-  const val = f => key === 'size' ? f.stats.size : f.stats.mtime;
+  const val = f => f.stats && (key === 'size' ? f.stats.size : f.stats.mtime);
   return [...files].sort((a, b) => {
     const x = val(a), y = val(b);
     if (x == null || y == null) return (x == null) - (y == null) || byName(a, b);   // unknown last
     return sign * (x - y) || byName(a, b);
   });
 }
-// Fills in file details only when a size or date sort needs them, with a few
-// reads at a time. A newer view that starts meanwhile cancels this one.
+// Fills in file details only when a size or date sort needs them, 12 reads
+// at a time. A newer view that starts meanwhile cancels this one.
 async function showSorted(folders, files, statusText, showPath) {
   const token = ++sortToken;
   if (!sortMode.startsWith('name') && files.some(f => !f.stats)) {
@@ -644,7 +644,7 @@ function showGrid(folders, files, statusText, showPath) {
     const fc = document.createElement('div'); fc.className = 'folder-card';
     const ic = document.createElement('div'); ic.className='fic'; ic.textContent='📁';
     const nm = document.createElement('div'); nm.className='fname'; nm.textContent=child.name;
-    const sb = document.createElement('div'); sb.className='fsub'; sb.textContent = countFilesDeep(child) + ' designs';
+    const sb = document.createElement('div'); sb.className='fsub'; sb.textContent = plural(countFilesDeep(child), 'design');
     fc.appendChild(ic); fc.appendChild(nm); fc.appendChild(sb);
     fc.addEventListener('click', () => navigateTo(child.path)); activatable(fc, () => navigateTo(child.path));
     grid.appendChild(fc);
@@ -900,7 +900,7 @@ function showFavorites() {
   setActiveTreeRow(null);
   breadcrumb.hidden = false; breadcrumb.textContent = 'Favorites';
   refreshViews();
-  showSorted([], files, `${files.length} designs in Favorites`, true);
+  showSorted([], files, `${plural(files.length, 'design')} in Favorites`, true);
 }
 // ---------------- SEARCH ----------------
 // Matches on file names from the tree built at load time, so searching never
@@ -914,7 +914,7 @@ function runSearch() {
   const hits = allFiles.filter(f => { const hay = f.path.toLowerCase(); return words.every(w => hay.includes(w)); });
   setActiveTreeRow(null);
   breadcrumb.hidden = false; breadcrumb.textContent = 'Search results';
-  showSorted([], hits, `${hits.length} of ${allFiles.length} designs match "${searchEl.value.trim()}"`, true);
+  showSorted([], hits, `${hits.length} of ${plural(allFiles.length, 'design')} match "${searchEl.value.trim()}"`, true);
 }
 searchEl.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 120); });
 searchEl.addEventListener('keydown', e => {
@@ -936,11 +936,10 @@ function finishLoading() {
   dropWrap.hidden = true;
   searchEl.hidden = false; searchEl.value = ''; clearCacheBtn.hidden = false;
   document.getElementById('sortBar').hidden = false;
-  countEl.textContent = `${totalFiles} designs`;
+  countEl.textContent = plural(totalFiles, 'design');
   buildTreeSidebar(); menuBtn.hidden = false;
   metaReady.then(refreshViews);
   navigateTo(root.path);
-  statusEl.textContent = '';
 }
 
 // A scan that finds nothing or throws returns to the start screen with a message, never a blank page.
@@ -1138,7 +1137,12 @@ lbSpeed.addEventListener('change', () => { if (lbPlaying) { lbP0 = lbProgress; l
 const lbSwatches = document.getElementById('lbSwatches'), lbPalette = document.getElementById('lbPalette');
 const lbCustom = document.getElementById('lbCustom'), lbJumps = document.getElementById('lbJumps');
 let lbSel = 0;
-function blockCount(design) { return design.stitches.reduce((a, p) => a + (p.colorChange ? 1 : 0), 1); }
+// Color changes among the first n points, from a prefix count built once per design.
+function colorChangesBefore(design, n) {
+  if (!design._cc) { design._cc = new Uint32Array(design.stitches.length + 1); design.stitches.forEach((p, i) => { design._cc[i + 1] = design._cc[i] + (p.colorChange ? 1 : 0); }); }
+  return design._cc[n];
+}
+function blockCount(design) { return colorChangesBefore(design, design.stitches.length) + 1; }
 function markSwatch() {
   [...lbSwatches.children].forEach((b, i) => b.classList.toggle('sel', i === lbSel));
   if (lbDesign) lbCustom.value = colorAt(lbDesign, lbSel);
@@ -1268,7 +1272,8 @@ async function openLightbox(item) {
     if (token === lbToken) document.getElementById('lbSub').textContent = `${e.message === 'timeout' ? NOT_DOWNLOADED : "Can't preview"} · ${fileRef.path}`;
   }
 }
-// Only the dark backdrop and the Close button close the preview, so the path and stats can be selected and copied.
+// A click closes the preview only on the dark backdrop or the Close button (Esc and the arrow keys close it from the keyboard),
+// so the path and stats can be selected and copied.
 lightbox.addEventListener('click', e => { if (e.target === lightbox) closeLightbox(); });
 document.getElementById('lbClose').addEventListener('click', closeLightbox);
 </script>
