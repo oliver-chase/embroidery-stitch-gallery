@@ -6,7 +6,7 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-export const GALLERY = process.env.GALLERY_HTML || path.join(here, '..', 'stitch-gallery.html');
+const GALLERY = process.env.GALLERY_HTML || path.join(here, '..', 'stitch-gallery.html');
 
 export function loadParsers() {
   const src = fs.readFileSync(GALLERY, 'utf8');

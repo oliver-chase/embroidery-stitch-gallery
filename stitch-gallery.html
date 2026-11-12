@@ -70,9 +70,9 @@
 
   #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
     gap: 16px; padding: 16px 24px 40px; }
-  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  .card { position: relative; background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
     overflow: hidden; cursor: pointer; transition: transform 0.08s, box-shadow 0.08s; }
-  .card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
+  .card:hover, .folder-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
   .card canvas { display: block; width: 100%; height: auto; aspect-ratio: 5 / 4; background: var(--fabric); }
   .card .meta { padding: 8px 10px; font-size: 12px; }
   .card .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
@@ -83,7 +83,6 @@
   .folder-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
     cursor: pointer; display: flex; flex-direction: column; align-items: center;
     justify-content: center; height: 208px; transition: transform 0.08s, box-shadow 0.08s; }
-  .folder-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
   .folder-card .fic { font-size: 54px; line-height: 1; }
   .folder-card .fname { margin-top: 10px; font-weight: 500; font-size: 13px; padding: 0 10px;
     text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
@@ -129,7 +128,6 @@
   #lightbox .lb-controls { margin-top: 10px; font-size: 12px; color: var(--muted); }
   #lightbox .lb-controls input { width: 64px; margin-left: 6px; }
 
-  .card { position: relative; }
   .card .name:focus-visible, .folder-card:focus-visible, .trow:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .card .fav { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; padding: 0; border-radius: 50%;
     background: rgba(255,255,255,0.92); color: var(--muted); border: 1px solid var(--border); font-size: 15px; line-height: 1; }
@@ -137,9 +135,8 @@
   #views .trow .vicon { width: 14px; text-align: center; color: var(--muted); font-size: 11px; }
   .saved-note { font-size: 11px; line-height: 1.45; color: var(--muted); margin: 0; padding: 4px 10px 12px; }
   .saved-note.warn { color: #b23a5b; }
-  #lightbox .lb-favrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin-top: 10px; }
-  #lightbox .lb-favrow button.lb-fav { width: 30px; height: 30px; padding: 0; border-radius: 50%; background: transparent;
-    color: var(--muted); border: 1px solid var(--border); font-size: 16px; line-height: 1; }
+  #lightbox .lb-fav { width: 30px; height: 30px; padding: 0; border-radius: 50%; background: transparent;
+    color: var(--muted); border: 1px solid var(--border); font-size: 16px; line-height: 1; display: block; margin: 10px auto 0; }
 </style>
 </head>
 <body>
@@ -197,9 +194,7 @@
     <button type="button" id="lbClose" class="secondary lb-close" aria-label="Close preview">Close</button>
     <canvas id="lbCanvas" width="600" height="600"></canvas>
     <div class="lb-meta" id="lbName"></div>
-    <div class="lb-favrow" id="lbFavRow">
-      <button type="button" id="lbFav" class="lb-fav" aria-pressed="false" title="Favorite" disabled>☆</button>
-    </div>
+    <button type="button" id="lbFav" class="lb-fav" aria-pressed="false" title="Favorite" disabled>☆</button>
     <div class="lb-play">
       <button type="button" id="lbPlayBtn" aria-label="Play">▶ Play</button>
       <input type="range" id="lbScrub" min="0" max="1000" value="1000" aria-label="Playback position">
@@ -324,12 +319,9 @@ function robustBounds(pts) {
   const medX = med(xs), medY = med(ys);
   const madX = med(xs.map(x=>Math.abs(x-medX))) || 1, madY = med(ys.map(y=>Math.abs(y-medY))) || 1;
   const kx = 6*madX, ky = 6*madY;
-  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,kept=0;
-  for (const p of pts) {
-    if (Math.abs(p.x-medX) > kx || Math.abs(p.y-medY) > ky) continue;
-    if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; kept++;
-  }
-  if (kept === 0) { for (const p of pts){ if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; } }
+  const kept = pts.filter(p => Math.abs(p.x-medX) <= kx && Math.abs(p.y-medY) <= ky);
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  for (const p of (kept.length ? kept : pts)) { if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
   return { minX, maxX, minY, maxY };
 }
 
@@ -459,6 +451,11 @@ function insertFile(fileRef) {
   node.files.push(fileRef);
   allFiles.push(fileRef);
 }
+// Adds one design to the library and lets the page repaint every 200 designs of a long scan.
+async function addDesign(fileRef) {
+  insertFile(fileRef); totalFiles++;
+  if (totalFiles % 200 === 0) { statusEl.textContent = `Scanning… found ${totalFiles} designs`; await new Promise(r => setTimeout(r, 0)); }
+}
 function findNode(path) {
   if (path === root.path) return root;
   const parts = path.split('/').filter(Boolean);
@@ -485,6 +482,9 @@ const SUPPORTED = ['dst', 'pes'];
 // folder of 400 files never shows a gallery of 250 with no explanation.
 const LISTED_ONLY = ['jef', 'exp', 'vp3', 'hus', 'xxx', 'sew', 'pec', 'vip', 'shv', 'pcs', 'emd'];
 const extOf = name => name.split('.').pop().toLowerCase();
+// localStorage can throw in a private window or with blocked storage, so every use goes through these.
+const lsGet = key => { try { return localStorage.getItem(key); } catch (e) { return null; } };
+const lsSet = (key, v) => { try { localStorage.setItem(key, v); } catch (e) {} };
 document.getElementById('fileInputFlat').accept = [...SUPPORTED, ...LISTED_ONLY].map(e => '.' + e).join(',');
 function supported(name) { return SUPPORTED.includes(extOf(name)) || LISTED_ONLY.includes(extOf(name)); }
 
@@ -565,7 +565,7 @@ function navigateTo(path) {
 const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
 const sortSel = document.getElementById('sortSel');
 let sortMode = 'name-asc', sortToken = 0;
-try { const v = localStorage.getItem('stitch-gallery-sort'); if ([...sortSel.options].some(o => o.value === v)) sortMode = v; } catch (e) {}
+{ const v = lsGet('stitch-gallery-sort'); if ([...sortSel.options].some(o => o.value === v)) sortMode = v; }
 sortSel.value = sortMode;
 
 async function readFileStats(fileRef) {
@@ -602,7 +602,7 @@ function reshowCurrent() {
 }
 sortSel.addEventListener('change', () => {
   sortMode = sortSel.value;
-  try { localStorage.setItem('stitch-gallery-sort', sortMode); } catch (e) {}
+  lsSet('stitch-gallery-sort', sortMode);
   reshowCurrent();
 });
 
@@ -852,11 +852,11 @@ async function itemSize(item) {
   return item.size = (await readWithTimeout(item.fileRef.meta, READ_TIMEOUT_MS)).size;
 }
 
+function paintFav(btn, on) { btn.textContent = on ? '★' : '☆'; btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', String(on)); }
 function paintCardMeta(item) {
   const r = metaFor(item.fileRef.path, item.size);
   const on = !!(r && r.fav);
-  item.favEl.textContent = on ? '★' : '☆'; item.favEl.classList.toggle('on', on);
-  item.favEl.setAttribute('aria-pressed', String(on));
+  paintFav(item.favEl, on);
 }
 
 // The Favorites row in the sidebar, with a count of favorited designs in this library.
@@ -935,14 +935,12 @@ async function loadDirectoryHandle(dirHandle) {
     for await (const entry of handle.values()) {
       if (entry.kind === 'file' && supported(entry.name)) {
         const fileEntry = entry;
-        insertFile({
+        await addDesign({
           name: fileEntry.name,
           path: prefix + fileEntry.name,
           read: async () => { const f = await fileEntry.getFile(); return f.arrayBuffer(); },
           meta: async () => { const f = await fileEntry.getFile(); return { size: f.size, mtime: f.lastModified }; }
         });
-        totalFiles++;
-        if (totalFiles % 200 === 0) { statusEl.textContent = `Scanning… found ${totalFiles} designs`; await new Promise(r=>setTimeout(r,0)); }
       } else if (entry.kind === 'directory') {
         await walk(entry, prefix + entry.name + '/');
       }
@@ -962,8 +960,7 @@ async function loadFiles(files) {
   initRoot(rootName);
   for (const f of list) {
     const rel = f.webkitRelativePath || (rootName + '/' + f.name);
-    insertFile({ name: f.name, path: rel, read: () => f.arrayBuffer(), meta: async () => ({ size: f.size, mtime: f.lastModified }) });
-    totalFiles++;
+    await addDesign({ name: f.name, path: rel, read: () => f.arrayBuffer(), meta: async () => ({ size: f.size, mtime: f.lastModified }) });
   }
   finishLoading();
 }
@@ -979,14 +976,12 @@ async function loadDrop(items) {
     if (entry.isFile) {
       if (supported(entry.name)) {
         const fileEntry = entry;
-        insertFile({
+        await addDesign({
           name: fileEntry.name,
           path: prefix + fileEntry.name,
           read: () => new Promise((res, rej) => fileEntry.file(f => f.arrayBuffer().then(res, rej), rej)),
           meta: () => new Promise((res, rej) => fileEntry.file(f => res({ size: f.size, mtime: f.lastModified }), rej))
         });
-        totalFiles++;
-        if (totalFiles % 200 === 0) { statusEl.textContent = `Scanning… found ${totalFiles} designs`; await new Promise(r=>setTimeout(r,0)); }
       }
     } else if (entry.isDirectory) {
       const reader = entry.createReader();
@@ -1026,7 +1021,7 @@ let lbToken = 0, lbInfo = null;
 // each color change (thread swap and re-start).
 const COLOR_CHANGE_SECONDS = 20, DEFAULT_SPM = 1000;
 function getSpm() {
-  try { const v = parseInt(localStorage.getItem('stitch-gallery-spm'), 10); if (v >= 100 && v <= 2000) return v; } catch (e) {}
+  const v = parseInt(lsGet('stitch-gallery-spm'), 10); if (v >= 100 && v <= 2000) return v;
   return DEFAULT_SPM;
 }
 function formatRuntime(info, spm) {
@@ -1058,7 +1053,7 @@ function renderStats() {
 lbSpm.addEventListener('input', () => {
   const v = parseInt(lbSpm.value, 10);
   if (!(v >= 100 && v <= 2000)) return;
-  try { localStorage.setItem('stitch-gallery-spm', String(v)); } catch (e) {}
+  lsSet('stitch-gallery-spm', String(v));
   renderStats();
 });
 
@@ -1083,7 +1078,7 @@ function drawPlayback() {
   } else {
     const n = Math.floor(lbProgress * lbDesign.stitches.length);
     const cur = drawProgress(lbCanvas, lbDesign, n);
-    const blocks = lbDesign.stitches.reduce((a, p) => a + (p.colorChange ? 1 : 0), 1);
+    const blocks = blockCount(lbDesign);
     lbBlock.textContent = `Color ${cur + 1} of ${blocks} · stitch ${n.toLocaleString()} of ${lbDesign.stitches.length.toLocaleString()}`;
   }
   lbScrub.value = Math.round(lbProgress * 1000);
@@ -1160,7 +1155,6 @@ document.getElementById('lbResetColors').addEventListener('click', () => {
   markSwatch(); persistRecolor(); drawPlayback();
 });
 lbJumps.addEventListener('change', () => { if (lbDesign) { lbDesign.showJumps = lbJumps.checked; drawPlayback(); } });
-document.getElementById('lbColors').addEventListener('click', e => e.stopPropagation());
 
 // ---- Favorite and saved recolors for the open design ----
 const lbFav = document.getElementById('lbFav');
@@ -1168,7 +1162,7 @@ let lbItem = null, lbSize = null, lbRecolorDirty = false;
 function lbRecord() { return lbItem && lbSize != null ? metaFor(lbItem.fileRef.path, lbSize) : null; }
 function renderLbMeta() {
   const r = lbRecord(), on = !!(r && r.fav);
-  lbFav.textContent = on ? '★' : '☆'; lbFav.classList.toggle('on', on); lbFav.setAttribute('aria-pressed', String(on));
+  paintFav(lbFav, on);
   lbFav.disabled = lbSize == null;
 }
 function changeLbMeta(patch) {
@@ -1182,7 +1176,6 @@ function persistRecolor() {
   lbRecolorDirty = true;
 }
 lbFav.addEventListener('click', () => { const r = lbRecord(); changeLbMeta({ fav: !(r && r.fav) }); });
-document.getElementById('lbFavRow').addEventListener('click', e => e.stopPropagation());
 function closeLightbox() {
   lbToken++; stopPlayback(); lightbox.classList.remove('open');
   if (lbItem && lbItem.card.isConnected) lbItem.card.querySelector('.name').focus({ preventScroll: true });

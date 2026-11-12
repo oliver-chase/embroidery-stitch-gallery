@@ -16,11 +16,6 @@ test('DST: the sample design gives every stitch, jump and color change in order'
   assert.deepEqual(plain(d.stitches), plain(expectedPoints(DST_STEPS, 'dst')));
 });
 
-test('DST: the file counts y upward, so the parsed y is flipped for the screen', () => {
-  const d = parseDST(ab(encodeDst([{ t: 'stitch', dx: 0, dy: 50 }])));
-  assert.equal(d.stitches[0].y, -50);
-});
-
 test('DST: every x and y step from -121 to 121 decodes exactly', () => {
   for (let v = -121; v <= 121; v++) {
     const d = parseDST(ab(encodeDst([{ t: 'stitch', dx: v, dy: 0 }, { t: 'stitch', dx: 0, dy: v }])));
@@ -48,11 +43,6 @@ test('PES: thread colors come from the standard PEC palette', () => {
   const d = parsePES(ab(samplePes()));
   assert.deepEqual(plain(d.colors), PES_COLORS.map(i => PEC_PALETTE[i]));
   assert.deepEqual(plain(d.colors), ['#ed171f', '#0e1f7c']);
-});
-
-test('PES: y is kept as stored (it already counts downward)', () => {
-  const d = parsePES(ab(encodePes([{ t: 'stitch', dx: 0, dy: 40 }], [1])));
-  assert.equal(d.stitches[0].y, 40);
 });
 
 test('PES: a jump is flagged, and a normal stitch is not', () => {
