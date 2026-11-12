@@ -129,14 +129,6 @@
   #lightbox .lb-controls input { width: 64px; margin-left: 6px; }
 
   .card .name:focus-visible, .folder-card:focus-visible, .trow:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .card .fav { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; padding: 0; border-radius: 50%;
-    background: rgba(255,255,255,0.92); color: var(--muted); border: 1px solid var(--border); font-size: 15px; line-height: 1; }
-  .fav.on { color: #946800; border-color: #946800; }
-  #views .trow .vicon { width: 14px; text-align: center; color: var(--muted); font-size: 11px; }
-  .saved-note { font-size: 11px; line-height: 1.45; color: var(--muted); margin: 0; padding: 4px 10px 12px; }
-  .saved-note.warn { color: #b23a5b; }
-  #lightbox .lb-fav { width: 30px; height: 30px; padding: 0; border-radius: 50%; background: transparent;
-    color: var(--muted); border: 1px solid var(--border); font-size: 16px; line-height: 1; display: block; margin: 10px auto 0; }
 </style>
 </head>
 <body>
@@ -152,11 +144,8 @@
 
 <div id="main">
   <div id="sidebar" hidden>
-    <div class="tree-label">Saved</div>
-    <div id="views"></div>
     <div class="tree-label">Folders</div>
     <div id="tree"></div>
-    <p class="saved-note" id="savedNote"></p>
   </div>
   <div id="content">
     <div id="dropWrap">
@@ -194,7 +183,6 @@
     <button type="button" id="lbClose" class="secondary lb-close" aria-label="Close preview">Close</button>
     <canvas id="lbCanvas" width="600" height="600"></canvas>
     <div class="lb-meta" id="lbName"></div>
-    <button type="button" id="lbFav" class="lb-fav" aria-label="Favorite" aria-pressed="false" title="Favorite" disabled>☆</button>
     <div class="lb-play">
       <button type="button" id="lbPlayBtn">▶ Play</button>
       <input type="range" id="lbScrub" min="0" max="1000" value="1000" aria-label="Playback position">
@@ -430,7 +418,6 @@ function renderToCanvas(canvas, design) {
 
 // ---------------- TREE MODEL ----------------
 let root = null, totalFiles = 0, currentPath = null, allFiles = [];
-let activeView = null;               // 'fav' while the Favorites view is open
 function newNode(name, path) { return { name, path, folders: new Map(), files: [] }; }
 function initRoot(rootName) { root = newNode(rootName || 'Designs', rootName || 'Designs'); totalFiles = 0; allFiles = []; }
 // The folder names below the root: a path's first segment is the root's own name and is skipped.
@@ -556,7 +543,7 @@ const CONCURRENCY = 4;
 let nav = null;                      // { gen, queue, active, observer } for the current view
 
 function navigateTo(path) {
-  searchEl.value = ''; activeView = null;
+  searchEl.value = '';
   currentPath = path;
   const node = findNode(path);
   setActiveTreeRow(path); renderBreadcrumb(path);
@@ -608,7 +595,6 @@ async function showSorted(folders, files, statusText, showPath) {
 }
 function reshowCurrent() {
   if (searchEl.value.trim()) runSearch();
-  else if (activeView) showFavorites();
   else navigateTo(currentPath);
 }
 sortSel.addEventListener('change', () => {
@@ -673,22 +659,10 @@ function makeDesignCardShell(fileRef, showPath) {
     meta.appendChild(st);
   }
 
-  const favEl = document.createElement('button'); favEl.type = 'button'; favEl.className = 'fav'; favEl.title = 'Favorite'; favEl.setAttribute('aria-label', 'Favorite');
-  card.appendChild(favEl);
-
-  const item = { fileRef, card, canvas, subEl, favEl, size: null, info: null, state: 'idle' };
+  const item = { fileRef, card, canvas, subEl, info: null, state: 'idle' };
   card._item = item;
   grid.appendChild(card);
   card.addEventListener('click', () => openLightbox(item)); activatable(nameEl, () => openLightbox(item));
-  favEl.addEventListener('click', async e => {
-    e.stopPropagation();
-    try {
-      const size = await itemSize(item), r = metaFor(fileRef.path, size);
-      saveMeta(fileRef.path, size, { fav: !(r && r.fav) });
-      paintCardMeta(item);
-    } catch (err) { statusEl.textContent = 'Could not read that file to save the favorite.'; }
-  });
-  paintCardMeta(item);
   return item;
 }
 
@@ -713,14 +687,9 @@ async function renderCard(item, cur) {
     if (isListedOnly(fileRef.name)) throw new Error('Unsupported');
     // size + modified time are available without downloading a cloud file
     const m = await statOf(fileRef);
-    await metaReady;
-    item.size = m.size;
-    dropStaleMeta(fileRef.path, m.size);
-    const rec = metaFor(fileRef.path, m.size), recolor = rec ? rec.recolor : [];
-    paintCardMeta(item);
-    // One entry per path. Size, date and recolors are its signature, so a changed design overwrites its old thumbnail.
+    // One entry per path. Size and date are its signature, so a changed file overwrites its old thumbnail.
     const key = `${CACHE_VERSION}|${fileRef.path}`;
-    const sig = `${m.size}|${m.mtime}${recolor.some(Boolean) ? '|' + recolor.map(c => c || '').join(',') : ''}`;
+    const sig = `${m.size}|${m.mtime}`;
     const found = await cacheGet(key), hit = found && found.sig === sig ? found : null;
     const stale = () => cur.gen !== navGen || item.state !== 'queued';
     if (stale()) { if (item.state === 'queued') item.state = 'idle'; return; }
@@ -735,7 +704,6 @@ async function renderCard(item, cur) {
       if (stale()) { if (item.state === 'queued') item.state = 'idle'; return; }
       const design = parseFile(fileRef.name, buffer);
       if (!design.stitches.length) throw new Error('Unsupported');   // a header with no stitches is not a design
-      design.recolor = recolor;
       canvas.width = CARD_W; canvas.height = CARD_H;
       item.info = renderToCanvas(canvas, design);
       const info = item.info;
@@ -768,15 +736,16 @@ async function renderCard(item, cur) {
 // paints from the cache without reading any file. Every call fails soft: in a
 // private window or an unsupported browser the gallery simply works uncached.
 // Bump CACHE_VERSION when the parsers or the card renderer change.
-const CACHE_VERSION = 4;
+const CACHE_VERSION = 5;
 let dbPromise = null;
 function openDb() {
   if (!dbPromise) dbPromise = new Promise(res => {
     try {
-      const rq = indexedDB.open('stitch-gallery', 3);
+      const rq = indexedDB.open('stitch-gallery', 4);
       rq.onupgradeneeded = e => {
-        for (const n of ['thumbs', 'handles', 'meta']) if (!rq.result.objectStoreNames.contains(n)) rq.result.createObjectStore(n);
-        if (e.oldVersion && e.oldVersion < 3) rq.transaction.objectStore('thumbs').clear();   // drop thumbnails keyed the old way
+        for (const n of ['thumbs', 'handles']) if (!rq.result.objectStoreNames.contains(n)) rq.result.createObjectStore(n);
+        if (rq.result.objectStoreNames.contains('meta')) rq.result.deleteObjectStore('meta');   // the gallery no longer keeps favorites or recolors
+        if (e.oldVersion && e.oldVersion < 4) rq.transaction.objectStore('thumbs').clear();   // drop thumbnails keyed the old way
       };
       rq.onsuccess = () => res(rq.result);
       rq.onerror = rq.onblocked = () => res(null);
@@ -821,94 +790,12 @@ clearCacheBtn.addEventListener('click', async () => {
 });
 offerReopen();
 
-// ---------------- FAVORITES, RECOLORS ----------------
-// One small record per design, keyed by path and holding the file size, so a
-// replaced file (different size) starts clean. Kept in its own IndexedDB store,
-// which Clear cache leaves alone. Recolors live here too, so a design looks the
-// same in the grid and the preview.
-const metaMap = new Map();   // path -> { path, size, fav, recolor }
-const metaReady = idb('meta', 'readonly', st => st.getAll()).then(rows => { for (const r of rows || []) metaMap.set(r.path, r); });
-const metaFor = (path, size) => { const r = metaMap.get(path); return r && (size == null || r.size === size) ? r : null; };
-
-// Tells the user, once and without blocking anything, where saved data lives and
-// when it is lost. If the browser will not store anything (private window,
-// blocked storage), say so plainly, so a lost save is never mistaken for a kept one.
-const savedNote = document.getElementById('savedNote');
-let storageOk = true, savedNoticeShown = false;
-const NOTE_OK = 'Favorites and recolors are saved in this browser on this computer. They are lost if you clear site data, use a private window, open the gallery in another browser, or move this file.';
-const NOTE_OFF = 'This window cannot save anything (private window or blocked storage). Favorites and recolors are forgotten when you close the page.';
-function checkStorage() {
-  return openDb().then(db => {
-    storageOk = !!db;
-    savedNote.textContent = storageOk ? NOTE_OK : NOTE_OFF;
-    savedNote.classList.toggle('warn', !storageOk);
-  });
-}
-checkStorage();
-function noteFirstSave() {
-  if (savedNoticeShown) return;
-  savedNoticeShown = true;
-  statusEl.textContent = storageOk
-    ? 'Saved in this browser only. Clearing site data, switching browsers or moving this file loses it.'
-    : 'Not saved: this window cannot store data, so it is kept only until you close the page.';
-}
-
-// A record saved for another size belongs to a replaced file. It is forgotten, so the list, the count and the star agree.
-function dropStaleMeta(path, size) {
-  if (!metaMap.has(path) || metaFor(path, size)) return;
-  metaMap.delete(path); idb('meta', 'readwrite', st => st.delete(path));
-  refreshViews();
-  if (activeView === 'fav') showFavorites();
-}
-function saveMeta(path, size, patch) {
-  const r = metaFor(path, size) || { path, size, fav: false, recolor: [] };
-  Object.assign(r, patch, { size });
-  if (!r.fav && !(r.recolor || []).some(Boolean)) { metaMap.delete(path); idb('meta', 'readwrite', st => st.delete(path)); }
-  else { metaMap.set(path, r); idb('meta', 'readwrite', st => st.put(r, path)); }
-  refreshViews(); noteFirstSave();
-}
-async function itemSize(item) {
-  if (item.size != null) return item.size;
-  return item.size = (await statOf(item.fileRef)).size;
-}
-
-function paintFav(btn, on) { btn.textContent = on ? '★' : '☆'; btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', String(on)); }
-function paintCardMeta(item) {
-  const r = metaFor(item.fileRef.path, item.size);
-  const on = !!(r && r.fav);
-  paintFav(item.favEl, on);
-}
-
-// The Favorites row in the sidebar, with a count of favorited designs in this library.
-const viewsEl = document.getElementById('views');
-function refreshViews() {
-  const count = allFiles.reduce((n, f) => n + (metaMap.get(f.path)?.fav ? 1 : 0), 0);
-  viewsEl.textContent = '';
-  const el = document.createElement('div'); el.className = 'trow'; el.dataset.path = 'view:fav';
-  const ic = document.createElement('span'); ic.className = 'vicon'; ic.textContent = '★';
-  const lb = document.createElement('span'); lb.textContent = 'Favorites';
-  const ct = document.createElement('span'); ct.className = 'tcount'; ct.textContent = count;
-  el.append(ic, lb, ct);
-  el.classList.toggle('active', activeView === 'fav');
-  el.addEventListener('click', showFavorites); activatable(el, showFavorites);
-  viewsEl.append(el);
-}
-function showFavorites() {
-  searchEl.value = '';
-  const files = allFiles.filter(f => metaMap.get(f.path)?.fav);
-  activeView = 'fav';
-  setActiveTreeRow(null);
-  breadcrumb.hidden = false; breadcrumb.textContent = 'Favorites';
-  refreshViews();
-  showSorted([], files, `${plural(files.length, 'design')} in Favorites`, true);
-}
 // ---------------- SEARCH ----------------
 // Matches on file names from the tree built at load time, so searching never
 // reads a file. Every word in the query must appear in the name or folder path.
 const searchEl = document.getElementById('search');
 let searchTimer = 0;
 function runSearch() {
-  if (activeView) { activeView = null; refreshViews(); }   // a search leaves the Favorites view
   const words = searchEl.value.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) { navigateTo(currentPath); return; }
   const hits = allFiles.filter(f => { const hay = f.path.toLowerCase(); return words.every(w => hay.includes(w)); });
@@ -938,7 +825,6 @@ function finishLoading() {
   document.getElementById('sortBar').hidden = false;
   countEl.textContent = plural(totalFiles, 'design');
   buildTreeSidebar(); menuBtn.hidden = false;
-  metaReady.then(refreshViews);
   navigateTo(root.path);
 }
 
@@ -1133,7 +1019,7 @@ lbSpeed.addEventListener('change', () => { if (lbPlaying) { lbP0 = lbProgress; l
 
 // ---- Recolor ----
 // Pick a color block, then a thread from the palette or a custom color.
-// Each change is saved with the design through persistRecolor.
+// A recolor lasts until the preview closes.
 const lbSwatches = document.getElementById('lbSwatches'), lbPalette = document.getElementById('lbPalette');
 const lbCustom = document.getElementById('lbCustom'), lbJumps = document.getElementById('lbJumps');
 let lbSel = 0;
@@ -1159,12 +1045,11 @@ function buildSwatches() {
   }
   lbSel = 0; markSwatch();
 }
-function setBlockColor(hex, save = true) {
+function setBlockColor(hex) {
   if (!lbDesign) return;
   (lbDesign.recolor = lbDesign.recolor || [])[lbSel] = hex;
   lbSwatches.children[lbSel].style.background = hex;
   lbCustom.value = hex;
-  if (save) persistRecolor();
   drawPlayback();
 }
 for (const hex of new Set(PEC_PALETTE)) {
@@ -1173,42 +1058,19 @@ for (const hex of new Set(PEC_PALETTE)) {
   b.addEventListener('click', () => setBlockColor(hex));
   lbPalette.append(b);
 }
-lbCustom.addEventListener('input', () => setBlockColor(lbCustom.value, false));   // preview while dragging
-lbCustom.addEventListener('change', persistRecolor);                                // save once when the picker closes
+lbCustom.addEventListener('input', () => setBlockColor(lbCustom.value));
 document.getElementById('lbResetColors').addEventListener('click', () => {
   if (!lbDesign) return;
   lbDesign.recolor = [];
   [...lbSwatches.children].forEach((b, i) => { b.style.background = colorAt(lbDesign, i); });
-  markSwatch(); persistRecolor(); drawPlayback();
+  markSwatch(); drawPlayback();
 });
 lbJumps.addEventListener('change', () => { if (lbDesign) { lbDesign.showJumps = lbJumps.checked; drawPlayback(); } });
 
-// ---- Favorite and saved recolors for the open design ----
-const lbFav = document.getElementById('lbFav');
-let lbItem = null, lbSize = null, lbRecolorDirty = false;
-function lbRecord() { return lbItem && lbSize != null ? metaFor(lbItem.fileRef.path, lbSize) : null; }
-function renderLbMeta() {
-  const r = lbRecord(), on = !!(r && r.fav);
-  paintFav(lbFav, on);
-  lbFav.disabled = lbSize == null;
-}
-function changeLbMeta(patch) {
-  if (!lbItem || lbSize == null) return;
-  saveMeta(lbItem.fileRef.path, lbSize, patch);
-  renderLbMeta(); paintCardMeta(lbItem);
-}
-function persistRecolor() {
-  if (!lbItem || lbSize == null || !lbDesign) return;
-  changeLbMeta({ recolor: Array.from(lbDesign.recolor || [], c => c || null) });
-  lbRecolorDirty = true;
-}
-lbFav.addEventListener('click', () => { const r = lbRecord(); changeLbMeta({ fav: !(r && r.fav) }); });
+let lbItem = null;   // the card whose preview is open
 function closeLightbox() {
   lbToken++; stopPlayback(); lightbox.classList.remove('open');
   if (lbItem && lbItem.card.isConnected) lbItem.card.querySelector('.name').focus({ preventScroll: true });
-  // A recolor changes the saved thumbnail signature, so redraw that card from the file.
-  if (lbRecolorDirty && lbItem && nav && lbItem.card.isConnected) { lbItem.state = 'queued'; nav.queue.push(lbItem); pump(nav); }
-  lbRecolorDirty = false;
 }
 
 // Keyboard: Esc closes the preview anywhere. Left and right step through the
@@ -1230,7 +1092,7 @@ document.addEventListener('keydown', e => {
   while (el && !el._item) el = el[side];     // skip folder tiles
   if (!el) return;
   e.preventDefault();
-  closeLightbox();                           // redraws the card if it was recolored
+  closeLightbox();
   el.scrollIntoView({ block: 'nearest' });
   openLightbox(el._item);
 });
@@ -1240,7 +1102,7 @@ async function openLightbox(item) {
   stopPlayback(); lbDesign = null; lbProgress = 1; lbScrub.value = 1000; lbBlock.textContent = '';
   lbPlayBtn.textContent = '▶ Play';
   lbJumps.checked = false; buildSwatches();
-  lbItem = item; lbSize = item.size; lbRecolorDirty = false; renderLbMeta();
+  lbItem = item;
   const canvas = lbCanvas;
   canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
   document.getElementById('lbName').textContent = fileRef.name; canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', fileRef.name);
@@ -1248,22 +1110,16 @@ async function openLightbox(item) {
   lbInfo = null; renderStats(); lbSpm.value = getSpm();
   lightbox.classList.add('open'); lbPlayBtn.focus();
   try {
-    await metaReady;
     if (isListedOnly(fileRef.name)) {   // no parser: show the note without reading the file
-      lbSize = await itemSize(item); renderLbMeta();
       document.getElementById('lbSub').textContent = `Can't preview · preview not supported yet · ${fileRef.path}`;
       return;
     }
     const buffer = await readWithTimeout(fileRef.read, READ_TIMEOUT_MS);
     if (token !== lbToken) return;
-    lbSize = item.size = buffer.byteLength;
     const design = parseFile(fileRef.name, buffer);
     if (!design.stitches.length) throw new Error('Unsupported');
-    const saved = metaFor(fileRef.path, lbSize);
-    design.recolor = saved ? saved.recolor.slice() : [];
     lbInfo = renderToCanvas(canvas, design);
     lbDesign = design; lbPlayBtn.textContent = '▶ Play'; buildSwatches();
-    renderLbMeta(); paintCardMeta(item);
     // The preview read downloaded the file, so a card that was waiting on it can draw now.
     if (item.state !== 'done' && nav && item.card.isConnected) { item.state = 'queued'; nav.queue.push(item); pump(nav); }
     renderStats();

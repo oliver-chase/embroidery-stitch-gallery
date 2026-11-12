@@ -6,6 +6,8 @@ Embroidery files contain the actual stitch design, but your computer usually sho
 
 You install nothing, run no server and upload no file. The entire application is one HTML file, and embroidery files are parsed in memory on your computer.
 
+Stitch Gallery is a viewer. It has no accounts and saves none of your designs, choices or changes, and it never modifies your files.
+
 ## What you can do
 
 ### Browse your existing folders
@@ -34,17 +36,22 @@ Open a design and press **Play** to watch it stitch in order, as the machine wou
 
 Open a design and click a colored dot under the slider to choose a color block. Then click a thread from the palette, or use **Custom** to pick any color. This is the quickest way to give a `.dst` design real colors. **Reset colors** puts the original colors back.
 
-Tick **Show jumps** to draw the travel moves between stitch runs as dashed red lines. Recolors work during playback and are saved with the design, so the grid thumbnail and the preview show them after a reload.
+Tick **Show jumps** to draw the travel moves between stitch runs as dashed red lines. Recolors work during playback and last until you close the preview.
 
-Recoloring changes only how the gallery draws the design. Your `.dst` and `.pes` files are never modified, and the new colors are stored in your browser. To get a recolored design into a stitch file, change the thread in your embroidery software.
+Recoloring changes only how the gallery draws the design. Your `.dst` and `.pes` files are never modified, and the new colors are forgotten when you close the preview. To get a recolored design into a stitch file, change the thread in your embroidery software.
 
-### Favorite designs
+### What it remembers
 
-Click the star on a card, or in the preview, to favorite a design. The **Favorites** row in the sidebar shows every favorite from all folders, with a count.
+The gallery keeps nothing of yours: no accounts, no favorites, no tags and no saved recolors.
 
-Favorites and recolors are stored in your browser, keyed by file path and file size. They come back when you reopen the page in the same browser and link the same folder. They are lost if you clear site data, use a private window, open the gallery in another browser, or move the HTML file. **Clear cache** leaves them alone. A file replaced by one of a different size starts clean.
+For speed it keeps four small things in your browser, and losing any of them costs nothing:
 
-The gallery says this in the sidebar, and shows a message the first time you save something after each page load. If your browser cannot store data at all (a private window, for example), the sidebar says so and the message tells you the change lasts only until you close the page. Nothing is blocked either way.
+* each design's thumbnail and size
+* the last folder you opened
+* your sort choice
+* your machine speed for run-time estimates
+
+**Clear cache** removes the thumbnails and the last folder. Clearing your browser's site data removes all four, and the gallery works as before the next time you open a folder.
 
 ### Check a design's details
 
@@ -57,7 +64,7 @@ Click a design to see its stitch count, color changes, number of thread colors, 
 
 ### Sort a folder
 
-Use the **Sort** menu above the grid to order designs by name, largest or smallest file, or newest or oldest. It applies to folders, search results and Favorites, and the gallery remembers your choice. Name sorting puts `Flower_2` before `Flower_10`.
+Use the **Sort** menu above the grid to order designs by name, largest or smallest file, or newest or oldest. It applies to folders and search results, and the gallery remembers your choice. Name sorting puts `Flower_2` before `Flower_10`.
 
 File size and date come from the file listing, so sorting works on cloud-only files without downloading them. While you sort by size or date, each card also shows its file size and date. A file whose details cannot be read sorts last.
 
@@ -99,7 +106,7 @@ If your embroidery files are stored in the cloud, make the folder available offl
 | `.dst` | Tajima commercial format. Stitch data is supported; the format does not contain thread colors, so previews use stand-in colors. |
 | `.pes` | Brother / Babylock format. Embedded thread colors are read from the standard PEC thread palette.                             |
 
-These formats are listed with a "preview not supported yet" note. You can favorite them and cannot preview them: `.jef`, `.exp`, `.vp3`, `.hus`, `.xxx`, `.sew`, `.pec`, `.vip`, `.shv`, `.pcs` and `.emd`.
+These formats are listed with a "preview not supported yet" note. They cannot be previewed: `.jef`, `.exp`, `.vp3`, `.hus`, `.xxx`, `.sew`, `.pec`, `.vip`, `.shv`, `.pcs` and `.emd`.
 
 Files in the eleven listed formats still appear, with a **can't preview** placeholder. Other file types are left out.
 
