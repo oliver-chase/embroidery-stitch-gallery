@@ -291,13 +291,10 @@ function parsePES(buffer) {
 // DST has color-change codes but no colors. Give each block a distinct
 // stand-in thread so the color sections are still visible.
 const PLACEHOLDER_THREADS = ["#2f2f2f", "#c0392b", "#2e7d32", "#1f5fa8", "#d4a017", "#7b3f9e", "#e07b00", "#00838f"];
-function colorsOf(design) {
-  return (design.colors && design.colors.length) ? design.colors : PLACEHOLDER_THREADS;
-}
 function colorAt(design, i) {
   if (design.recolor && design.recolor[i]) return design.recolor[i];
-  const c = colorsOf(design);
-  return (design.colors && design.colors.length) ? c[Math.min(i, c.length - 1)] : c[i % c.length];
+  const own = design.colors && design.colors.length, c = own ? design.colors : PLACEHOLDER_THREADS;
+  return own ? c[Math.min(i, c.length - 1)] : c[i % c.length];
 }
 function parseFile(name, buffer) {
   const ext = name.split('.').pop().toLowerCase();
@@ -437,21 +434,20 @@ let root = null, totalFiles = 0, currentPath = null, allFiles = [];
 let activeView = null;               // 'fav' while the Favorites view is open
 function newNode(name, path) { return { name, path, folders: new Map(), files: [] }; }
 function initRoot(rootName) { root = newNode(rootName || 'Designs', rootName || 'Designs'); totalFiles = 0; allFiles = []; }
+// The folder names below the root: a path's first segment is the root's own name and is skipped.
+const belowRoot = parts => (parts.length && parts[0] === root.name) ? parts.slice(1) : parts;
 function insertFile(fileRef) {
   const parts = fileRef.path.split('/').filter(Boolean);
   parts.pop(); // filename
-  // first segment is the root name; skip it when descending
-  let node = root, startIdx = (parts.length && parts[0] === root.name) ? 1 : 0;
-  let acc = root.path;
-  for (let i = startIdx; i < parts.length; i++) {
-    acc = acc + '/' + parts[i];
-    if (!node.folders.has(parts[i])) node.folders.set(parts[i], newNode(parts[i], acc));
-    node = node.folders.get(parts[i]);
+  let node = root, acc = root.path;
+  for (const part of belowRoot(parts)) {
+    acc = acc + '/' + part;
+    if (!node.folders.has(part)) node.folders.set(part, newNode(part, acc));
+    node = node.folders.get(part);
   }
   node.files.push(fileRef);
   allFiles.push(fileRef);
 }
-// Adds one design to the library and lets the page repaint every 200 designs of a long scan.
 let scanGen = 0;   // each scan takes the next number, and an older scan stops when a newer one starts
 class StaleScan extends Error {}
 function beginScan(rootName) {
@@ -459,6 +455,7 @@ function beginScan(rootName) {
   initRoot(rootName);
   return ++scanGen;
 }
+// Adds one design to the library and lets the page repaint every 200 designs of a long scan.
 async function addDesign(fileRef, gen) {
   if (gen !== scanGen) throw new StaleScan();
   insertFile(fileRef); totalFiles++;
@@ -466,9 +463,8 @@ async function addDesign(fileRef, gen) {
 }
 function findNode(path) {
   if (path === root.path) return root;
-  const parts = path.split('/').filter(Boolean);
-  let node = root, i = (parts.length && parts[0] === root.name) ? 1 : 0;
-  for (; i < parts.length; i++) { if (!node.folders.has(parts[i])) return node; node = node.folders.get(parts[i]); }
+  let node = root;
+  for (const part of belowRoot(path.split('/').filter(Boolean))) { if (!node.folders.has(part)) return node; node = node.folders.get(part); }
   return node;
 }
 function countFilesDeep(node) { let n = node.files.length; for (const c of node.folders.values()) n += countFilesDeep(c); return n; }
@@ -493,11 +489,12 @@ const SUPPORTED = ['dst', 'pes'];
 // folder of 400 files never shows a gallery of 250 with no explanation.
 const LISTED_ONLY = ['jef', 'exp', 'vp3', 'hus', 'xxx', 'sew', 'pec', 'vip', 'shv', 'pcs', 'emd'];
 const extOf = name => name.split('.').pop().toLowerCase();
+const isListedOnly = name => LISTED_ONLY.includes(extOf(name));
 // localStorage can throw in a private window or with blocked storage, so every use goes through these.
 const lsGet = key => { try { return localStorage.getItem(key); } catch (e) { return null; } };
 const lsSet = (key, v) => { try { localStorage.setItem(key, v); } catch (e) {} };
 document.getElementById('fileInputFlat').accept = [...SUPPORTED, ...LISTED_ONLY].map(e => '.' + e).join(',');
-function supported(name) { return SUPPORTED.includes(extOf(name)) || LISTED_ONLY.includes(extOf(name)); }
+function supported(name) { return SUPPORTED.includes(extOf(name)) || isListedOnly(name); }
 
 // Makes a clickable div reachable from the keyboard: Tab focuses it, Enter or Space activates it.
 function activatable(el, fn) {
@@ -512,7 +509,7 @@ function renderTreeNode(node, depth) {
   const hasChildren = node.folders.size > 0;
   if (!hasChildren) caret.classList.add('leaf');
   caret.textContent = '▶';
-  const label = document.createElement('span'); label.textContent = node.name || 'Library';
+  const label = document.createElement('span'); label.textContent = node.name;
   const cnt = document.createElement('span'); cnt.className = 'tcount'; cnt.textContent = countFilesDeep(node);
   row.appendChild(caret); row.appendChild(label); row.appendChild(cnt); wrap.appendChild(row);
   const childrenWrap = document.createElement('div'); childrenWrap.className = 'tchildren';
@@ -713,7 +710,7 @@ async function renderCard(item, cur) {
   const { fileRef, card, canvas, subEl } = item;
   try {
     // A listed-only format has no parser, so never read its file just to say so.
-    if (LISTED_ONLY.includes(extOf(fileRef.name))) throw new Error('Unsupported');
+    if (isListedOnly(fileRef.name)) throw new Error('Unsupported');
     // size + modified time are available without downloading a cloud file
     const m = await statOf(fileRef);
     await metaReady;
@@ -759,7 +756,7 @@ async function renderCard(item, cur) {
       subEl.textContent = NOT_DOWNLOADED;
     } else {
       ctx.fillText("Can't preview", CARD_W/2, CARD_H/2);
-      subEl.textContent = extOf(fileRef.name).toUpperCase() + (LISTED_ONLY.includes(extOf(fileRef.name)) ? ' · preview not supported yet' : ' · unreadable');
+      subEl.textContent = extOf(fileRef.name).toUpperCase() + (isListedOnly(fileRef.name) ? ' · preview not supported yet' : ' · unreadable');
     }
   }
 }
@@ -831,11 +828,10 @@ offerReopen();
 const metaMap = new Map();   // path -> { path, size, fav, recolor }
 const metaReady = idb('meta', 'readonly', st => st.getAll()).then(rows => { for (const r of rows || []) metaMap.set(r.path, r); });
 const metaFor = (path, size) => { const r = metaMap.get(path); return r && (size == null || r.size === size) ? r : null; };
-const metaEmpty = r => !r.fav && !(r.recolor || []).some(Boolean);
 
 // Tells the user, once and without blocking anything, where saved data lives and
 // when it is lost. If the browser will not store anything (private window,
-// blocked storage), say so plainly instead of pretending the save worked.
+// blocked storage), say so plainly, so a lost save is never mistaken for a kept one.
 const savedNote = document.getElementById('savedNote');
 let storageOk = true, savedNoticeShown = false;
 const NOTE_OK = 'Favorites and recolors are saved in this browser on this computer. They are lost if you clear site data, use a private window, open the gallery in another browser, or move this file.';
@@ -859,10 +855,9 @@ function noteFirstSave() {
 function saveMeta(path, size, patch) {
   const r = metaFor(path, size) || { path, size, fav: false, recolor: [] };
   Object.assign(r, patch, { size });
-  if (metaEmpty(r)) { metaMap.delete(path); idb('meta', 'readwrite', st => st.delete(path)); }
+  if (!r.fav && !(r.recolor || []).some(Boolean)) { metaMap.delete(path); idb('meta', 'readwrite', st => st.delete(path)); }
   else { metaMap.set(path, r); idb('meta', 'readwrite', st => st.put(r, path)); }
   refreshViews(); noteFirstSave();
-  return r;
 }
 async function itemSize(item) {
   if (item.size != null) return item.size;
@@ -1101,9 +1096,10 @@ function drawPlayback() {
   }
   lbScrub.value = Math.round(lbProgress * 1000);
 }
+function paintPlayBtn() { lbPlayBtn.textContent = lbProgress >= 1 ? '↻ Replay' : '▶ Play'; }
 function stopPlayback() {
   lbPlaying = false; cancelAnimationFrame(lbRaf);
-  lbPlayBtn.textContent = lbProgress >= 1 ? '↻ Replay' : '▶ Play';
+  paintPlayBtn();
 }
 function frame(now) {
   if (!lbPlaying) return;
@@ -1123,7 +1119,7 @@ lbPlayBtn.addEventListener('click', () => lbPlaying ? stopPlayback() : startPlay
 lbScrub.addEventListener('input', () => {
   lbProgress = Number(lbScrub.value) / 1000;
   if (lbPlaying) { lbP0 = lbProgress; lbT0 = performance.now(); }
-  else lbPlayBtn.textContent = lbProgress >= 1 ? '↻ Replay' : '▶ Play';
+  else paintPlayBtn();
   drawPlayback();
 });
 lbSpeed.addEventListener('change', () => { if (lbPlaying) { lbP0 = lbProgress; lbT0 = performance.now(); } });
@@ -1198,7 +1194,7 @@ lbFav.addEventListener('click', () => { const r = lbRecord(); changeLbMeta({ fav
 function closeLightbox() {
   lbToken++; stopPlayback(); lightbox.classList.remove('open');
   if (lbItem && lbItem.card.isConnected) lbItem.card.querySelector('.name').focus({ preventScroll: true });
-  // A recolor changes the saved thumbnail key, so redraw that card from the file.
+  // A recolor changes the saved thumbnail signature, so redraw that card from the file.
   if (lbRecolorDirty && lbItem && nav && lbItem.card.isConnected) { lbItem.state = 'queued'; nav.queue.push(lbItem); pump(nav); }
   lbRecolorDirty = false;
 }
@@ -1233,7 +1229,7 @@ async function openLightbox(item) {
   lbPlayBtn.textContent = '▶ Play';
   lbJumps.checked = false; buildSwatches();
   lbItem = item; lbSize = item.size; lbRecolorDirty = false; renderLbMeta();
-  const canvas = document.getElementById('lbCanvas');
+  const canvas = lbCanvas;
   canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
   document.getElementById('lbName').textContent = fileRef.name; canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', fileRef.name);
   document.getElementById('lbSub').textContent = 'loading…';
@@ -1241,7 +1237,7 @@ async function openLightbox(item) {
   lightbox.classList.add('open'); lbPlayBtn.focus();
   try {
     await metaReady;
-    if (LISTED_ONLY.includes(extOf(fileRef.name))) {   // no parser: show the note without reading the file
+    if (isListedOnly(fileRef.name)) {   // no parser: show the note without reading the file
       lbSize = await itemSize(item); renderLbMeta();
       document.getElementById('lbSub').textContent = `Can't preview · preview not supported yet · ${fileRef.path}`;
       return;

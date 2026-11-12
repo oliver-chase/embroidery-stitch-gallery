@@ -46,11 +46,6 @@ test('PES: thread colors come from the standard PEC palette', () => {
   assert.deepEqual(plain(d.colors), ['#ed171f', '#0e1f7c']);
 });
 
-test('PES: a jump is flagged, and a normal stitch is not', () => {
-  const d = parsePES(ab(encodePes([{ t: 'stitch', dx: 5, dy: 5 }, { t: 'jump', dx: 100, dy: 100 }], [1])));
-  assert.deepEqual(plain(d.stitches.map(p => p.jump)), [false, true]);
-});
-
 test('PES: a jump or trim bit on either axis marks the stitch as a jump', () => {
   const cases = [[true, false], [false, true], ['trim', false], [false, 'trim']];
   for (const flags of cases) {
