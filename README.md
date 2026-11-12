@@ -64,19 +64,19 @@ Click a design to see its stitch count, color changes, number of thread colors, 
 
 ### Sort a folder
 
-Use the **Sort** menu above the grid to order designs by name, largest or smallest file, or newest or oldest. It applies to folders and search results, and HoopView remembers your choice. Name sorting puts `Flower_2` before `Flower_10`.
+Use the **Sort** menu above the grid to order designs by name, largest or smallest file, or newest or oldest. It orders the designs in each folder and in search results, while folder tiles stay in name order, and HoopView remembers your choice. Name sorting puts `Flower_2` before `Flower_10`.
 
 File size and date come from the file listing, so sorting works on cloud-only files without downloading them. While you sort by size or date, each card also shows its file size and date. A file whose details cannot be read sorts last.
 
 ### Find a design fast
 
-Type in the search box (or press `/`) to search every folder at once. Every word you type must appear in the file name or its folder path. Each result shows its folder, and clicking the folder opens it. Press `Esc` to clear the search.
+Type in the search box (or press `/`) to search every folder at once. Every word you type must appear in the file name or its folder path. Each result shows its folder, and clicking the folder opens it. Press `Esc` in the search box to clear it.
 
 ### Pick up where you left off
 
 In Chrome and Edge, HoopView remembers the last folder you opened. Next time, click **Reopen** on the start screen and approve read access.
 
-Each design's thumbnail and size are cached in your browser, so a folder you have already viewed appears without reading any files.
+Each design's thumbnail and size are cached in your browser, so a folder you have already viewed appears without reading any design's contents.
 
 ### Keep everything local
 
