@@ -534,12 +534,12 @@ function renderBreadcrumb(path) {
 }
 // Read a file's bytes but never hang forever on a stalled cloud file.
 function readWithTimeout(reader, ms) {
-  return Promise.race([
-    reader(),
-    new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
-  ]);
+  let timer;
+  return Promise.race([reader(), new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('timeout')), ms); })])
+    .finally(() => clearTimeout(timer));
 }
 const READ_TIMEOUT_MS = 30000;
+const NOT_DOWNLOADED = 'Not downloaded — make available offline';
 
 let navGen = 0; // bumped on every navigation so stale loads can bail out
 
@@ -591,7 +591,7 @@ function sortedBy(files) {
 async function showSorted(folders, files, statusText, showPath) {
   const token = ++sortToken;
   if (!sortMode.startsWith('name') && files.some(f => !f.stats)) {
-    statusEl.textContent = 'Reading file sizes and dates…';
+    statusEl.textContent = 'Reading file sizes and dates…'; grid.textContent = '';   // never leave the previous folder under the new breadcrumb
     const todo = files.filter(f => !f.stats);
     await Promise.all(Array.from({ length: 12 }, async () => { while (todo.length && token === sortToken) await readFileStats(todo.pop()); }));
     if (token !== sortToken) return;
@@ -709,9 +709,10 @@ async function renderCard(item, cur) {
     item.size = m.size;
     const rec = metaFor(fileRef.path, m.size), recolor = rec ? rec.recolor : [];
     paintCardMeta(item);
-    // Recolors are part of the key, so a recolored design never reuses its old thumbnail.
-    const key = `${CACHE_VERSION}|${fileRef.path}|${m.size}|${m.mtime}${recolor.some(Boolean) ? '|' + recolor.map(c => c || '').join(',') : ''}`;
-    const hit = await cacheGet(key);
+    // One entry per path. Size, date and recolors are its signature, so a changed design overwrites its old thumbnail.
+    const key = `${CACHE_VERSION}|${fileRef.path}`;
+    const sig = `${m.size}|${m.mtime}${recolor.some(Boolean) ? '|' + recolor.map(c => c || '').join(',') : ''}`;
+    const found = await cacheGet(key), hit = found && found.sig === sig ? found : null;
     const stale = () => cur.gen !== navGen || item.state !== 'queued';
     if (stale()) { if (item.state === 'queued') item.state = 'idle'; return; }
     if (hit) {
@@ -728,7 +729,7 @@ async function renderCard(item, cur) {
       canvas.width = CARD_W; canvas.height = CARD_H;
       item.info = renderToCanvas(canvas, design);
       const info = item.info;
-      canvas.toBlob(blob => { if (blob) cachePut(key, { blob, info }); }, 'image/webp', 0.85);
+      canvas.toBlob(blob => { if (blob) cachePut(key, { blob, info, sig }); }, 'image/webp', 0.85);
     }
     item.state = 'done';
     subEl.textContent = infoText(item.info);
@@ -743,7 +744,7 @@ async function renderCard(item, cur) {
       ctx.fillText('Cloud-only', CARD_W/2, CARD_H/2 - 8);
       ctx.font = '16px sans-serif';
       ctx.fillText('not downloaded', CARD_W/2, CARD_H/2 + 18);
-      subEl.textContent = 'Not downloaded — make available offline';
+      subEl.textContent = NOT_DOWNLOADED;
     } else {
       ctx.fillText("Can't preview", CARD_W/2, CARD_H/2);
       subEl.textContent = extOf(fileRef.name).toUpperCase() + (LISTED_ONLY.includes(extOf(fileRef.name)) ? ' · preview not supported yet' : ' · unreadable');
@@ -757,14 +758,15 @@ async function renderCard(item, cur) {
 // paints from the cache without reading any file. Every call fails soft: in a
 // private window or an unsupported browser the gallery simply works uncached.
 // Bump CACHE_VERSION when the parsers or the card renderer change.
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
 let dbPromise = null;
 function openDb() {
   if (!dbPromise) dbPromise = new Promise(res => {
     try {
-      const rq = indexedDB.open('stitch-gallery', 2);
-      rq.onupgradeneeded = () => {
+      const rq = indexedDB.open('stitch-gallery', 3);
+      rq.onupgradeneeded = e => {
         for (const n of ['thumbs', 'handles', 'meta']) if (!rq.result.objectStoreNames.contains(n)) rq.result.createObjectStore(n);
+        if (e.oldVersion && e.oldVersion < 3) rq.transaction.objectStore('thumbs').clear();   // drop thumbnails keyed the old way
       };
       rq.onsuccess = () => res(rq.result);
       rq.onerror = rq.onblocked = () => res(null);
@@ -790,7 +792,7 @@ const clearCacheBtn = document.getElementById('clearCacheBtn');
 async function offerReopen() {
   const saved = await idb('handles', 'readonly', st => st.get('last'));
   if (!saved || !saved.handle) return;
-  reopenBtn.textContent = `Reopen “${saved.handle.name}”`;
+  reopenBtn.textContent = `Reopen "${saved.handle.name}"`;
   reopenWrap.hidden = false;
   reopenBtn.onclick = async () => {
     try {
@@ -1136,12 +1138,12 @@ function buildSwatches() {
   }
   lbSel = 0; markSwatch();
 }
-function setBlockColor(hex) {
+function setBlockColor(hex, save = true) {
   if (!lbDesign) return;
   (lbDesign.recolor = lbDesign.recolor || [])[lbSel] = hex;
   lbSwatches.children[lbSel].style.background = hex;
   lbCustom.value = hex;
-  persistRecolor();
+  if (save) persistRecolor();
   drawPlayback();
 }
 for (const hex of new Set(PEC_PALETTE)) {
@@ -1150,7 +1152,8 @@ for (const hex of new Set(PEC_PALETTE)) {
   b.addEventListener('click', () => setBlockColor(hex));
   lbPalette.append(b);
 }
-lbCustom.addEventListener('input', () => setBlockColor(lbCustom.value));
+lbCustom.addEventListener('input', () => setBlockColor(lbCustom.value, false));   // preview while dragging
+lbCustom.addEventListener('change', persistRecolor);                                // save once when the picker closes
 document.getElementById('lbResetColors').addEventListener('click', () => {
   if (!lbDesign) return;
   lbDesign.recolor = [];
@@ -1241,7 +1244,7 @@ async function openLightbox(item) {
     renderStats();
     document.getElementById('lbSub').textContent = fileRef.path;
   } catch (e) {
-    if (token === lbToken) document.getElementById('lbSub').textContent = `Can't preview · ${fileRef.path}`;
+    if (token === lbToken) document.getElementById('lbSub').textContent = `${e.message === 'timeout' ? NOT_DOWNLOADED : "Can't preview"} · ${fileRef.path}`;
   }
 }
 // Only the dark backdrop and the Close button close the preview, so the path and stats can be selected and copied.
