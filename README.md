@@ -155,6 +155,7 @@ The tests load the readers straight out of `stitch-gallery.html` and check them 
 
 * [Catalog](docs/CATALOG.md) lists the scripts and config files and what each does
 * [Sharing](docs/SHARING.md) records whether the repo is meant to be shared and what is still open
+* [Structure contract](docs/repo-structure-contract.md) records how this repo follows OliverCode and where it differs on purpose
 * [Backlog config](docs/backlog-config.json) names the owner's GitHub Project and is not needed to use the gallery
 
 ### Folders
