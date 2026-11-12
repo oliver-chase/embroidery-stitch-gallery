@@ -715,6 +715,7 @@ async function renderCard(item, cur) {
     const m = await statOf(fileRef);
     await metaReady;
     item.size = m.size;
+    dropStaleMeta(fileRef.path, m.size);
     const rec = metaFor(fileRef.path, m.size), recolor = rec ? rec.recolor : [];
     paintCardMeta(item);
     // One entry per path. Size, date and recolors are its signature, so a changed design overwrites its old thumbnail.
@@ -852,6 +853,13 @@ function noteFirstSave() {
     : 'Not saved: this window cannot store data, so it is kept only until you close the page.';
 }
 
+// A record saved for another size belongs to a replaced file. It is forgotten, so the list, the count and the star agree.
+function dropStaleMeta(path, size) {
+  if (!metaMap.has(path) || metaFor(path, size)) return;
+  metaMap.delete(path); idb('meta', 'readwrite', st => st.delete(path));
+  refreshViews();
+  if (activeView === 'fav') showFavorites();
+}
 function saveMeta(path, size, patch) {
   const r = metaFor(path, size) || { path, size, fav: false, recolor: [] };
   Object.assign(r, patch, { size });
