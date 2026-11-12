@@ -311,9 +311,9 @@ function parseFile(name, buffer) {
 // coordinates can't blow up the scale and squash the real design into a corner.
 function robustBounds(pts) {
   const med = arr => { const s = [...arr].sort((a,b)=>a-b); const m = s.length>>1; return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
-  // Median and spread come from at most ~2,000 evenly spaced points; the
+  // Median and spread come from about 2,000 evenly spaced points at most; the
   // full pass below still checks every stitch against the resulting limits.
-  const step = Math.max(1, Math.floor(pts.length / 2000));
+  const step = Math.max(1, Math.ceil(pts.length / 2000));
   const sample = step === 1 ? pts : pts.filter((_, i) => i % step === 0);
   const xs = sample.map(p=>p.x), ys = sample.map(p=>p.y);
   const medX = med(xs), medY = med(ys);
@@ -579,9 +579,12 @@ let sortMode = 'name-asc', sortToken = 0;
 { const v = lsGet('stitch-gallery-sort'); if ([...sortSel.options].some(o => o.value === v)) sortMode = v; }
 sortSel.value = sortMode;
 
+// One size-and-date read per file, shared by the card, the favorite button and the size sort.
+// A failed read is forgotten, so a card that timed out can try again.
+const statOf = fileRef => fileRef._stat || (fileRef._stat = readWithTimeout(fileRef.meta, READ_TIMEOUT_MS).catch(e => { fileRef._stat = null; throw e; }));
 async function readFileStats(fileRef) {
   if (fileRef.stats) return;
-  try { const m = await readWithTimeout(fileRef.meta, READ_TIMEOUT_MS); fileRef.stats = { size: m.size, mtime: m.mtime }; }
+  try { const m = await statOf(fileRef); fileRef.stats = { size: m.size, mtime: m.mtime }; }
   catch (e) { fileRef.stats = { size: null, mtime: null }; }
 }
 function sortedBy(files) {
@@ -712,7 +715,7 @@ async function renderCard(item, cur) {
     // A listed-only format has no parser, so never read its file just to say so.
     if (LISTED_ONLY.includes(extOf(fileRef.name))) throw new Error('Unsupported');
     // size + modified time are available without downloading a cloud file
-    const m = await readWithTimeout(fileRef.meta, READ_TIMEOUT_MS);
+    const m = await statOf(fileRef);
     await metaReady;
     item.size = m.size;
     const rec = metaFor(fileRef.path, m.size), recolor = rec ? rec.recolor : [];
@@ -733,17 +736,18 @@ async function renderCard(item, cur) {
       const buffer = await readWithTimeout(fileRef.read, READ_TIMEOUT_MS);
       if (stale()) { if (item.state === 'queued') item.state = 'idle'; return; }
       const design = parseFile(fileRef.name, buffer);
+      if (!design.stitches.length) throw new Error('Unsupported');   // a header with no stitches is not a design
       design.recolor = recolor;
       canvas.width = CARD_W; canvas.height = CARD_H;
       item.info = renderToCanvas(canvas, design);
       const info = item.info;
       canvas.toBlob(blob => { if (blob) cachePut(key, { blob, info, sig }); }, 'image/webp', 0.85);
     }
-    item.state = 'done';
+    item.state = 'done'; card.classList.remove('broken');
     subEl.textContent = infoText(item.info);
   } catch (e) {
     if (cur.gen !== navGen) return;
-    item.state = 'failed';
+    item.state = e.message === 'timeout' ? 'idle' : 'failed';   // a timed-out card tries again when it scrolls back
     card.classList.add('broken');
     canvas.width = CARD_W; canvas.height = CARD_H;
     const ctx = canvas.getContext('2d');
@@ -862,7 +866,7 @@ function saveMeta(path, size, patch) {
 }
 async function itemSize(item) {
   if (item.size != null) return item.size;
-  return item.size = (await readWithTimeout(item.fileRef.meta, READ_TIMEOUT_MS)).size;
+  return item.size = (await statOf(item.fileRef)).size;
 }
 
 function paintFav(btn, on) { btn.textContent = on ? '★' : '☆'; btn.classList.toggle('on', on); btn.setAttribute('aria-pressed', String(on)); }
@@ -1246,11 +1250,14 @@ async function openLightbox(item) {
     if (token !== lbToken) return;
     lbSize = item.size = buffer.byteLength;
     const design = parseFile(fileRef.name, buffer);
+    if (!design.stitches.length) throw new Error('Unsupported');
     const saved = metaFor(fileRef.path, lbSize);
     design.recolor = saved ? saved.recolor.slice() : [];
     lbInfo = renderToCanvas(canvas, design);
     lbDesign = design; lbPlayBtn.textContent = '▶ Play'; buildSwatches();
     renderLbMeta(); paintCardMeta(item);
+    // The preview read downloaded the file, so a card that was waiting on it can draw now.
+    if (item.state !== 'done' && nav && item.card.isConnected) { item.state = 'queued'; nav.queue.push(item); pump(nav); }
     renderStats();
     document.getElementById('lbSub').textContent = fileRef.path;
   } catch (e) {
