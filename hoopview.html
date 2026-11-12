@@ -1118,8 +1118,9 @@ async function openLightbox(item) {
     if (!design.stitches.length) throw new Error('Unsupported');
     lbInfo = renderToCanvas(canvas, design);
     lbDesign = design; lbPlayBtn.textContent = '▶ Play'; buildSwatches();
-    // The preview read downloaded the file, so a card that was waiting on it can draw now.
-    if (item.state !== 'done' && nav && item.card.isConnected) { item.state = 'queued'; nav.queue.push(item); pump(nav); }
+    // The preview read downloaded the file, so a card that timed out or failed can draw now.
+    // A queued card is already waiting or rendering, so it is left alone.
+    if ((item.state === 'idle' || item.state === 'failed') && nav && item.card.isConnected) { item.state = 'queued'; nav.queue.push(item); pump(nav); }
     renderStats();
     document.getElementById('lbSub').textContent = fileRef.path;
   } catch (e) {
