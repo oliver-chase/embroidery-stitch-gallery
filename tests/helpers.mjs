@@ -18,6 +18,12 @@ export function loadParsers() {
   return ctx.api;
 }
 
+// The whole inline page script, so a test can check that it compiles.
+export function pageScript() {
+  const src = fs.readFileSync(GALLERY, 'utf8');
+  return src.slice(src.indexOf('<script>') + 8, src.lastIndexOf('</script>'));
+}
+
 // Results come from another JavaScript realm, so compare them as plain data.
 export const plain = x => JSON.parse(JSON.stringify(x));
 

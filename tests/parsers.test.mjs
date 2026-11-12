@@ -1,9 +1,10 @@
 // Run from the repo folder: node --test tests/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import vm from 'node:vm';
 import {
   loadParsers, plain, DST_STEPS, PES_STEPS, PES_COLORS,
-  expectedPoints, encodeDst, encodePes, dstRecord,
+  expectedPoints, encodeDst, encodePes, dstRecord, pageScript,
 } from './helpers.mjs';
 
 const { parseDST, parsePES, parseFile, PEC_PALETTE } = loadParsers();
@@ -92,4 +93,9 @@ test('parseFile picks the parser from the extension, in any letter case', () => 
 
 test('parseFile refuses formats it cannot read', () => {
   assert.throws(() => parseFile('x.jef', new ArrayBuffer(10)), /Unsupported: \.jef/);
+});
+
+// ---------------- the page ----------------
+test('the whole page script compiles, so a syntax error outside the parsers fails the validation', () => {
+  assert.doesNotThrow(() => new vm.Script(pageScript()));
 });
