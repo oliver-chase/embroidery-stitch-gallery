@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Runs the repo's own validation before every commit, so a failing test cannot be committed.
+set -euo pipefail
+exec bash "$(git rev-parse --show-toplevel)/scripts/validate.sh"
