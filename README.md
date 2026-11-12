@@ -36,7 +36,7 @@ Open a design and press **Play** to watch it stitch in order, as the machine wou
 
 Open a design and click a colored dot under the slider to choose a color block. Then click a thread from the palette, or use **Custom** to pick any color. This is the quickest way to give a `.dst` design real colors. **Reset colors** puts the original colors back.
 
-Tick **Show jumps** to draw the travel moves between stitch runs as dashed red lines. Recolors work during playback and last until you close the preview.
+Tick **Show jumps** to draw the travel moves between stitch runs as dashed red lines. Recolors work during playback.
 
 Recoloring changes only how HoopView draws the design. Your `.dst` and `.pes` files are never modified, and the new colors are forgotten when you close the preview. To get a recolored design into a stitch file, change the thread in your embroidery software.
 
@@ -51,7 +51,7 @@ For speed it keeps four small things in your browser, and losing any of them cos
 * your sort choice
 * your machine speed for run-time estimates
 
-**Clear cache** removes the thumbnails and the last folder. Clearing your browser's site data removes all four, and HoopView works as before the next time you open a folder.
+**Clear cache** in the header removes the thumbnails and the last folder. Clearing your browser's site data removes all four, and HoopView works as before the next time you open a folder.
 
 ### Check a design's details
 
@@ -76,7 +76,7 @@ Type in the search box (or press `/`) to search every folder at once. Every word
 
 In Chrome and Edge, HoopView remembers the last folder you opened. Next time, click **Reopen** on the start screen and approve read access.
 
-Each design's thumbnail and size are cached in your browser, so a folder you have already viewed appears without reading any files. The cache lives in your browser only. **Clear cache** in the header removes it and the remembered folder.
+Each design's thumbnail and size are cached in your browser, so a folder you have already viewed appears without reading any files.
 
 ### Keep everything local
 
@@ -106,9 +106,7 @@ If your embroidery files are stored in the cloud, make the folder available offl
 | `.dst` | Tajima commercial format. Stitch data is supported; the format does not contain thread colors, so previews use stand-in colors. |
 | `.pes` | Brother / Babylock format. Embedded thread colors are read from the standard PEC thread palette.                             |
 
-These formats are listed with a "preview not supported yet" note. They cannot be previewed: `.jef`, `.exp`, `.vp3`, `.hus`, `.xxx`, `.sew`, `.pec`, `.vip`, `.shv`, `.pcs` and `.emd`.
-
-Files in the eleven listed formats still appear, with a **can't preview** placeholder. Other file types are left out.
+Files in eleven more formats appear with a **can't preview** placeholder and a "preview not supported yet" note: `.jef`, `.exp`, `.vp3`, `.hus`, `.xxx`, `.sew`, `.pec`, `.vip`, `.shv`, `.pcs` and `.emd`. Other file types are left out.
 
 ---
 
@@ -127,9 +125,6 @@ Everything runs from a single HTML file with inline CSS and JavaScript. There is
 
 ## Known limits
 
-* Only `.dst` and `.pes` files are currently parsed
-* Thread colors require a `.pes` file with an embedded color table
-* `.dst` colors are placeholders, because DST contains no color data
 * Folder selection works best in Chromium-based browsers such as Chrome and Edge
 * Firefox and Safari fall back to a standard file picker and do not provide the same live folder-tree access. They have not been tested
 
