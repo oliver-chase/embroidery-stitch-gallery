@@ -64,7 +64,7 @@ test('PES: short and long coordinate forms agree at the boundary', () => {
   }
 });
 
-test('PES: a file with no colors still starts its stitches at the standard offset', () => {
+test('PES: a file with no colors still reads every stitch and reports no colors', () => {
   const d = parsePES(ab(encodePes(PES_STEPS, [])));
   assert.equal(d.stitches.length, PES_STEPS.length);
   assert.deepEqual(plain(d.colors), []);
@@ -74,6 +74,11 @@ test('PES: a file cut off mid-stitch gives no NaN', () => {
   const full = encodePes([{ t: 'stitch', dx: 100, dy: 0 }], [1]);
   const d = parsePES(ab(full.subarray(0, full.length - 3)));
   assert.ok(d.stitches.every(s => Number.isFinite(s.x) && Number.isFinite(s.y)));
+});
+
+test('PES: a file cut inside a long y value gives no phantom stitch', () => {
+  const full = encodePes([{ t: 'stitch', dx: 5, dy: 100 }], [1]);
+  assert.equal(parsePES(ab(full.subarray(0, full.length - 3))).stitches.length, 0);
 });
 
 test('PES: a file that is not a PES is rejected', () => {

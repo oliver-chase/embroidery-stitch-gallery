@@ -44,7 +44,7 @@ Click the star on a card, or in the preview, to favorite a design. The **Favorit
 
 Favorites and recolors are stored in your browser, keyed by file path and file size. They come back when you reopen the page in the same browser and link the same folder. They are lost if you clear site data, use a private window, open the gallery in another browser, or move the HTML file. **Clear cache** leaves them alone. A file replaced by one of a different size starts clean.
 
-The gallery says this in the sidebar, and shows a one-time message the first time you save something. If your browser cannot store data at all (a private window, for example), the sidebar says so and the message tells you the change lasts only until you close the page. Nothing is blocked either way.
+The gallery says this in the sidebar, and shows a message the first time you save something after each page load. If your browser cannot store data at all (a private window, for example), the sidebar says so and the message tells you the change lasts only until you close the page. Nothing is blocked either way.
 
 ### Check a design's details
 
@@ -138,11 +138,13 @@ The gallery needs nothing installed. The tests are for anyone changing the file 
 bash scripts/validate.sh
 ```
 
-The tests load the readers straight out of `stitch-gallery.html` and check them against sample designs they build from known stitches, so they contain no one's real designs. They cover stitch positions, jumps, color changes, the thread palette, the flipped DST axis and the size limits of both formats.
+After cloning, run `git config core.hooksPath .githooks` once, so the pre-commit hook runs these tests before every commit.
+
+The tests load the readers straight out of `stitch-gallery.html` and check them against sample designs they build from known stitches, so they contain no one's real designs. They cover stitch positions, jumps, color changes, the thread palette, the flipped DST axis and the coordinate limits of both formats.
 
 ---
 
 ## More documents
 
-* [Catalog](docs/CATALOG.md) lists every part of the repo and what it does
+* [Catalog](docs/CATALOG.md) lists the scripts and config files and what each does
 * [Sharing](docs/SHARING.md) records whether the repo is meant to be shared and what is still open
