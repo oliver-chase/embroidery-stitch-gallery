@@ -452,7 +452,15 @@ function insertFile(fileRef) {
   allFiles.push(fileRef);
 }
 // Adds one design to the library and lets the page repaint every 200 designs of a long scan.
-async function addDesign(fileRef) {
+let scanGen = 0;   // each scan takes the next number, and an older scan stops when a newer one starts
+class StaleScan extends Error {}
+function beginScan(rootName) {
+  dropWrap.hidden = true; statusEl.textContent = 'Scanning folder structure…';
+  initRoot(rootName);
+  return ++scanGen;
+}
+async function addDesign(fileRef, gen) {
+  if (gen !== scanGen) throw new StaleScan();
   insertFile(fileRef); totalFiles++;
   if (totalFiles % 200 === 0) { statusEl.textContent = `Scanning… found ${totalFiles} designs`; await new Promise(r => setTimeout(r, 0)); }
 }
@@ -934,8 +942,7 @@ function scanEnded(message) {
   grid.innerHTML = ''; countEl.textContent = '';   // no stale library from an earlier folder
 }
 async function loadDirectoryHandle(dirHandle) {
-  dropWrap.hidden = true; statusEl.textContent = 'Scanning folder structure…';
-  initRoot(dirHandle.name);
+  const gen = beginScan(dirHandle.name);
   async function walk(handle, prefix) {
     for await (const entry of handle.values()) {
       if (entry.kind === 'file' && supported(entry.name)) {
@@ -945,13 +952,14 @@ async function loadDirectoryHandle(dirHandle) {
           path: prefix + fileEntry.name,
           read: async () => { const f = await fileEntry.getFile(); return f.arrayBuffer(); },
           meta: async () => { const f = await fileEntry.getFile(); return { size: f.size, mtime: f.lastModified }; }
-        });
+        }, gen);
       } else if (entry.kind === 'directory') {
         await walk(entry, prefix + entry.name + '/');
       }
     }
   }
-  try { await walk(dirHandle, dirHandle.name + '/'); } catch (e) { return scanEnded('Could not read that folder. Choose it again.'); }
+  try { await walk(dirHandle, dirHandle.name + '/'); } catch (e) { return e instanceof StaleScan ? undefined : scanEnded('Could not read that folder. Choose it again.'); }
+  if (gen !== scanGen) return;
   if (!totalFiles) return scanEnded('No embroidery files found in that folder. Choose another.');
   finishLoading();
 }
@@ -959,14 +967,15 @@ async function loadDirectoryHandle(dirHandle) {
 async function loadFiles(files) {
   const list = Array.from(files).filter(f => supported(f.name));
   if (!list.length) { statusEl.textContent = 'No embroidery files found.'; return; }
-  dropWrap.hidden = true; statusEl.textContent = 'Scanning folder structure…';
   const first = list[0].webkitRelativePath || list[0].name;
   const rootName = first.includes('/') ? first.split('/')[0] : 'Designs';
-  initRoot(rootName);
-  for (const f of list) {
-    const rel = f.webkitRelativePath || (rootName + '/' + f.name);
-    await addDesign({ name: f.name, path: rel, read: () => f.arrayBuffer(), meta: async () => ({ size: f.size, mtime: f.lastModified }) });
-  }
+  const gen = beginScan(rootName);
+  try {
+    for (const f of list) {
+      const rel = f.webkitRelativePath || (rootName + '/' + f.name);
+      await addDesign({ name: f.name, path: rel, read: () => f.arrayBuffer(), meta: async () => ({ size: f.size, mtime: f.lastModified }) }, gen);
+    }
+  } catch (e) { if (e instanceof StaleScan) return; throw e; }
   finishLoading();
 }
 
@@ -974,9 +983,7 @@ async function loadDrop(items) {
   const roots = [];
   for (const item of items) { const entry = item.webkitGetAsEntry && item.webkitGetAsEntry(); if (entry) roots.push(entry); }
   if (!roots.length) return false;
-  dropWrap.hidden = true; statusEl.textContent = 'Scanning folder structure…';
-  const rootName = (roots.length === 1 && roots[0].isDirectory) ? roots[0].name : 'Designs';
-  initRoot(rootName);
+  const gen = beginScan((roots.length === 1 && roots[0].isDirectory) ? roots[0].name : 'Designs');
   async function traverse(entry, prefix) {
     if (entry.isFile) {
       if (supported(entry.name)) {
@@ -986,7 +993,7 @@ async function loadDrop(items) {
           path: prefix + fileEntry.name,
           read: () => new Promise((res, rej) => fileEntry.file(f => f.arrayBuffer().then(res, rej), rej)),
           meta: () => new Promise((res, rej) => fileEntry.file(f => res({ size: f.size, mtime: f.lastModified }), rej))
-        });
+        }, gen);
       }
     } else if (entry.isDirectory) {
       const reader = entry.createReader();
@@ -995,7 +1002,8 @@ async function loadDrop(items) {
       do { batch = await readBatch(); for (const en of batch) await traverse(en, prefix + entry.name + '/'); } while (batch.length > 0);
     }
   }
-  try { for (const r of roots) await traverse(r, ''); } catch (e) { scanEnded('Could not read that folder. Choose it again.'); return true; }
+  try { for (const r of roots) await traverse(r, ''); } catch (e) { if (!(e instanceof StaleScan)) scanEnded('Could not read that folder. Choose it again.'); return true; }
+  if (gen !== scanGen) return true;
   if (!totalFiles) { scanEnded('No embroidery files found in that folder. Choose another.'); return true; }
   finishLoading();
   return true;
