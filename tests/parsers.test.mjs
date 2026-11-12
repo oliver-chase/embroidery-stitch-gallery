@@ -78,6 +78,18 @@ test('PES: short and long coordinate forms agree at the boundary', () => {
   }
 });
 
+test('PES: a file with no colors still starts its stitches at the standard offset', () => {
+  const d = parsePES(ab(encodePes(PES_STEPS, [])));
+  assert.equal(d.stitches.length, PES_STEPS.length);
+  assert.deepEqual(plain(d.colors), []);
+});
+
+test('PES: a file cut off mid-stitch gives no NaN', () => {
+  const full = encodePes([{ t: 'stitch', dx: 100, dy: 0 }], [1]);
+  const d = parsePES(ab(full.subarray(0, full.length - 3)));
+  assert.ok(d.stitches.every(s => Number.isFinite(s.x) && Number.isFinite(s.y)));
+});
+
 test('PES: a file that is not a PES is rejected', () => {
   assert.throws(() => parsePES(ab(sampleDst())), /Not a PES file/);
 });

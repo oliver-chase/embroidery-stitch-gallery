@@ -264,22 +264,13 @@ function parsePES(buffer) {
   if (String.fromCharCode(v[0], v[1], v[2], v[3]) !== '#PES') throw new Error('Not a PES file');
   const pecStart = v[8] | (v[9]<<8) | (v[10]<<16) | (v[11]<<24);
   // The offset at PES+8 points at the start of the PEC header ("LA:").
-  // Walk the header to the color table and the stitch stream.
-  let p = pecStart;
-  p += 3;                 // "LA:"
-  p += 16;                // label
-  p += 15;                // padding then 0xFF 0x00
-  p += 1;                 // graphic byte stride
-  p += 1;                 // graphic icon height
-  p += 12;
-  const colorChanges = v[p]; p += 1;
+  // The color count sits 48 bytes in, the color table follows it, and the
+  // stitch stream always starts 528 bytes into the PEC block.
+  const colorChanges = v[pecStart + 48];
   const countColors = colorChanges === 0xFF ? 0 : colorChanges + 1;
   const colors = [];
-  for (let i = 0; i < countColors; i++) colors.push(PEC_PALETTE[v[p + i] % PEC_PALETTE.length]);
-  p += countColors;       // color index table
-  p += (0x1D0 - colorChanges); // seek to stitch-block length field
-  p += 3;                 // 3-byte block length (unused)
-  p += 11;                // fixed header bytes before stitches
+  for (let i = 0; i < countColors; i++) colors.push(PEC_PALETTE[v[pecStart + 49 + i] % PEC_PALETTE.length]);
+  let p = pecStart + 528;
 
   const stitches = []; let x = 0, y = 0;
   while (p + 1 < v.length) {
@@ -291,7 +282,9 @@ function parsePES(buffer) {
       if ((val1 & 0x20) || (val1 & 0x10)) jump = true; // trim or jump = pen up
       dx = signed12((val1 << 8) | val2); p += 2; val2 = v[p];
     } else { dx = signed7(val1); p += 1; val2 = v[p]; }
+    if (p >= v.length) break;          // cut off after the x value: no half stitch
     if (val2 & 0x80) {
+      if (p + 1 >= v.length) break;
       if ((val2 & 0x20) || (val2 & 0x10)) jump = true;
       dy = signed12((val2 << 8) | v[p+1]); p += 2;
     } else { dy = signed7(val2); p += 1; }
@@ -436,7 +429,7 @@ function renderToCanvas(canvas, design) {
     const isJump = isJumpMove(p, prev, jumpDist);
     if (isJump && prev && design.showJumps) drawJump(ctx, tx(prev.x), ty(prev.y), cx, cy);
     else if (isJump || prev === null) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
-    stitchCount++;
+    if (!isJump) stitchCount++;        // jump moves are travel, not stitches
     if (p.jump) jumps++;
     if (prev && !isJump) threadUnits += Math.hypot(p.x - prev.x, p.y - prev.y);
     prev = p;
