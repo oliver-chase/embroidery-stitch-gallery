@@ -1,7 +1,7 @@
 {
   "_comment": "The backlog config for this repo's GitHub Project, read by the backlog skill. Field IDs come from `gh project field-list` for the Project number below.",
   "repoOwner": "oliver-chase",
-  "repoName": "embroidery-stitch-gallery",
+  "repoName": "hoopview",
   "projectOwner": "oliver-chase",
   "projectNumber": 22,
   "projectId": "PVT_kwHOCyeGV84BpVsB",

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stitch Gallery</title>
+<title>HoopView</title>
 <style>
   :root {
     --bg: #fff7fc; --panel: #ffffff; --ink: #2b2b2b; --muted: #725f6f;
@@ -133,7 +133,7 @@
 </head>
 <body>
 <header>
-  <h1>Stitch Gallery</h1>
+  <h1>HoopView</h1>
   <button id="menuBtn" class="secondary" hidden aria-expanded="false">Folders</button>
   <button id="pickBtn">Choose Folder…</button>
   <button id="pickFilesBtn" class="secondary">Or pick files</button>
@@ -560,7 +560,7 @@ function navigateTo(path) {
 const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
 const sortSel = document.getElementById('sortSel');
 let sortMode = 'name-asc', sortToken = 0;
-{ const v = lsGet('stitch-gallery-sort'); if ([...sortSel.options].some(o => o.value === v)) sortMode = v; }
+{ const v = lsGet('hoopview-sort'); if ([...sortSel.options].some(o => o.value === v)) sortMode = v; }
 sortSel.value = sortMode;
 
 // One size-and-date read per file, shared by the card, the favorite button and the size sort.
@@ -599,7 +599,7 @@ function reshowCurrent() {
 }
 sortSel.addEventListener('change', () => {
   sortMode = sortSel.value;
-  lsSet('stitch-gallery-sort', sortMode);
+  lsSet('hoopview-sort', sortMode);
   reshowCurrent();
 });
 
@@ -734,18 +734,16 @@ async function renderCard(item, cur) {
 // IndexedDB holds the last folder handle and one small thumbnail plus size info
 // per design, keyed by path + size + modified time, so reopening a library
 // paints from the cache without reading any file. Every call fails soft: in a
-// private window or an unsupported browser the gallery simply works uncached.
+// private window or an unsupported browser HoopView simply works uncached.
 // Bump CACHE_VERSION when the parsers or the card renderer change.
 const CACHE_VERSION = 5;
 let dbPromise = null;
 function openDb() {
   if (!dbPromise) dbPromise = new Promise(res => {
     try {
-      const rq = indexedDB.open('stitch-gallery', 4);
-      rq.onupgradeneeded = e => {
+      const rq = indexedDB.open('hoopview', 1);
+      rq.onupgradeneeded = () => {
         for (const n of ['thumbs', 'handles']) if (!rq.result.objectStoreNames.contains(n)) rq.result.createObjectStore(n);
-        if (rq.result.objectStoreNames.contains('meta')) rq.result.deleteObjectStore('meta');   // the gallery no longer keeps favorites or recolors
-        if (e.oldVersion && e.oldVersion < 4) rq.transaction.objectStore('thumbs').clear();   // drop thumbnails keyed the old way
       };
       rq.onsuccess = () => res(rq.result);
       rq.onerror = rq.onblocked = () => res(null);
@@ -927,7 +925,7 @@ let lbToken = 0, lbInfo = null;
 // each color change (thread swap and re-start).
 const COLOR_CHANGE_SECONDS = 20, DEFAULT_SPM = 1000;
 function getSpm() {
-  const v = parseInt(lsGet('stitch-gallery-spm'), 10); if (v >= 100 && v <= 2000) return v;
+  const v = parseInt(lsGet('hoopview-spm'), 10); if (v >= 100 && v <= 2000) return v;
   return DEFAULT_SPM;
 }
 function formatRuntime(info, spm) {
@@ -959,7 +957,7 @@ function renderStats() {
 lbSpm.addEventListener('input', () => {
   const v = parseInt(lbSpm.value, 10);
   if (!(v >= 100 && v <= 2000)) return;
-  lsSet('stitch-gallery-spm', String(v));
+  lsSet('hoopview-spm', String(v));
   renderStats();
 });
 

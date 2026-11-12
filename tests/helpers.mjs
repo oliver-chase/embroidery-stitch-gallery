@@ -1,17 +1,17 @@
-// Loads the real parsers out of stitch-gallery.html, so the tests check the code
-// that ships. Set GALLERY_HTML to point the tests at another copy of the file.
+// Loads the real parsers out of hoopview.html, so the tests check the code
+// that ships. Set HOOPVIEW_HTML to point the tests at another copy of the file.
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const GALLERY = process.env.GALLERY_HTML || path.join(here, '..', 'stitch-gallery.html');
+const PAGE = process.env.HOOPVIEW_HTML || path.join(here, '..', 'hoopview.html');
 
 export function loadParsers() {
-  const src = fs.readFileSync(GALLERY, 'utf8');
+  const src = fs.readFileSync(PAGE, 'utf8');
   const a = src.indexOf('// ---------------- PARSERS'), b = src.indexOf('// ---------------- RENDERING');
-  if (a < 0 || b < a) throw new Error('Could not find the parser section in ' + GALLERY);
+  if (a < 0 || b < a) throw new Error('Could not find the parser section in ' + PAGE);
   const ctx = {};
   vm.createContext(ctx);
   vm.runInContext(src.slice(a, b) + '\nthis.api = { parseDST, parsePES, parseFile, PEC_PALETTE };', ctx);
@@ -20,7 +20,7 @@ export function loadParsers() {
 
 // The whole inline page script, so a test can check that it compiles.
 export function pageScript() {
-  const src = fs.readFileSync(GALLERY, 'utf8');
+  const src = fs.readFileSync(PAGE, 'utf8');
   return src.slice(src.indexOf('<script>') + 8, src.lastIndexOf('</script>'));
 }
 
