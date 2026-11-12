@@ -6,7 +6,7 @@ Embroidery files contain the actual stitch design, but your computer usually sho
 
 You install nothing, run no server and upload no file. The entire application is one HTML file, and embroidery files are parsed in memory on your computer.
 
-HoopView is a viewer. It has no accounts and saves none of your designs, choices or changes, and it never modifies your files.
+HoopView is a viewer. It has no accounts and never modifies your files, and the few things it keeps in your browser are listed under "What it remembers".
 
 ## What you can do
 
