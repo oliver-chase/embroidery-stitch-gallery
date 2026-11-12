@@ -1009,9 +1009,10 @@ document.getElementById('pickFilesBtn').addEventListener('click', () => document
 document.getElementById('fileInput').addEventListener('change', e => loadFiles(e.target.files));
 document.getElementById('fileInputFlat').addEventListener('change', e => loadFiles(e.target.files));
 
-['dragenter','dragover'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('hover'); }));
-dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove('hover'); });
-dropZone.addEventListener('drop', async e => {
+// A drop anywhere on the page loads the folder, so the browser never opens the file and loses the library.
+window.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('hover'); });
+window.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove('hover'); });
+window.addEventListener('drop', async e => {
   e.preventDefault(); dropZone.classList.remove('hover');
   const handled = await loadDrop(e.dataTransfer.items);
   if (!handled) loadFiles(e.dataTransfer.files);
