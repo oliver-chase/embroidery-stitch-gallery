@@ -6,4 +6,4 @@ Global rules in `~/.claude/CLAUDE.md` apply. Repo specifics:
 - The live backlog is the GitHub Project that `docs/backlog-config.json` names. File and groom it with the `backlog` skill
 - The pre-commit hook runs `bash scripts/validate.sh`, the parser tests, which need only Node
 - Stories closed as not planned stay closed unless the owner reopens them: EXP, JEF, VP3, HUS and XXX parsers, zip browsing, fabric rendering, quality checks, format conversion, USB copy and the mm and inch toggle
-- Audit status: done on 2026-11-11, after three fresh-reader passes and the removal of favorites. The log for every repo is `.claude-optimization/state/current_state.md` in OliverCode
+- Audit status: done on 2026-11-12, after four fresh-reader passes, the last after the removal of favorites (epic #67). The log for every repo is `.claude-optimization/state/current_state.md` in OliverCode
