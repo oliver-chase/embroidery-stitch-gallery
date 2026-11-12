@@ -20,7 +20,7 @@
   #clearCacheBtn { font-size: 12px; padding: 5px 10px; }
   #search { font: inherit; font-size: 13px; padding: 7px 12px; width: 260px; max-width: 40vw;
     border: 1px solid var(--border); border-radius: 6px; background: var(--fabric); color: var(--ink); }
-  #search:focus { outline: none; border-color: var(--accent); }
+  #search:focus { outline: 2px solid var(--accent); outline-offset: 2px; border-color: var(--accent); }
   .card .path { color: var(--accent); font-size: 11px; margin-top: 2px; white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis; }
   .card .path:hover { text-decoration: underline; }
@@ -121,7 +121,7 @@
   #lightbox .lb-colors button.sw { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent;
     box-shadow: 0 0 0 1px rgba(0,0,0,0.25); cursor: pointer; padding: 0; }
   #lightbox .lb-colors button.sw.sel { border-color: var(--panel); box-shadow: 0 0 0 2px var(--ink); }
-  #lightbox .lb-colors button.pal { width: 16px; height: 16px; border-radius: 3px; border: 0;
+  #lightbox .lb-colors button.pal { width: 24px; height: 24px; border-radius: 3px; border: 0;
     box-shadow: 0 0 0 1px rgba(0,0,0,0.2); cursor: pointer; padding: 0; }
   #lightbox .lb-colorbar { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 8px; font-size: 12px; color: var(--muted); }
   #lightbox .lb-colorbar input[type=color] { width: 28px; height: 22px; padding: 0; vertical-align: middle; }
@@ -536,7 +536,7 @@ function renderBreadcrumb(path) {
     if (i > 0) { const sep = document.createElement('span'); sep.textContent = '  ›  '; breadcrumb.appendChild(sep); }
     const crumb = document.createElement('span'); crumb.className = 'crumb'; crumb.textContent = part;
     acc = acc ? acc + '/' + part : part; const target = acc;
-    crumb.addEventListener('click', () => navigateTo(target));
+    crumb.addEventListener('click', () => navigateTo(target)); activatable(crumb, () => navigateTo(target));
     breadcrumb.appendChild(crumb);
   });
 }
@@ -662,7 +662,7 @@ function makeDesignCardShell(fileRef, showPath) {
   if (showPath) {
     const dir = fileRef.path.split('/').slice(0, -1).join('/');
     const pathEl = document.createElement('div'); pathEl.className = 'path'; pathEl.textContent = dir; pathEl.title = 'Open ' + dir;
-    pathEl.addEventListener('click', e => { e.stopPropagation(); navigateTo(dir); });
+    pathEl.addEventListener('click', e => { e.stopPropagation(); navigateTo(dir); }); activatable(pathEl, () => navigateTo(dir));
     meta.appendChild(pathEl);
   }
   const subEl = document.createElement('div'); subEl.className = 'sub'; subEl.textContent = 'loading…'; meta.appendChild(subEl);
@@ -901,6 +901,7 @@ function showFavorites() {
 const searchEl = document.getElementById('search');
 let searchTimer = 0;
 function runSearch() {
+  if (activeView) { activeView = null; refreshViews(); }   // a search leaves the Favorites view
   const words = searchEl.value.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) { navigateTo(currentPath); return; }
   const hits = allFiles.filter(f => { const hay = f.path.toLowerCase(); return words.every(w => hay.includes(w)); });
@@ -1225,6 +1226,7 @@ document.addEventListener('keydown', e => {
 async function openLightbox(item) {
   const { fileRef } = item, token = ++lbToken;
   stopPlayback(); lbDesign = null; lbProgress = 1; lbScrub.value = 1000; lbBlock.textContent = '';
+  lbPlayBtn.textContent = '▶ Play';
   lbJumps.checked = false; buildSwatches();
   lbItem = item; lbSize = item.size; lbRecolorDirty = false; renderLbMeta();
   const canvas = document.getElementById('lbCanvas');
