@@ -4,7 +4,7 @@ Embroidery files contain the actual stitch design, but your computer usually sho
 
 **Stitch Gallery turns that folder into a visual gallery.** It reads the stitch data directly in your browser and shows real previews, organized using the same folder structure already on your computer.
 
-There is nothing to install, no server to run, and no file upload. The entire application is one HTML file, and embroidery files are parsed in memory on your computer.
+You install nothing, run no server and upload no file. The entire application is one HTML file, and embroidery files are parsed in memory on your computer.
 
 ## What you can do
 
@@ -12,7 +12,7 @@ There is nothing to install, no server to run, and no file upload. The entire ap
 
 The sidebar mirrors your actual folder structure. Expand and collapse folders, see how many designs each contains, and move through the hierarchy without reorganizing your files.
 
-Click a folder in the sidebar or a folder tile in the grid to open it. Breadcrumbs let you jump back to any parent folder. On a window narrower than 700 pixels, such as a phone, the folder list opens from the **Folders** button and closes when you pick a folder.
+Click a folder in the sidebar or a folder tile in the grid to open it. Breadcrumbs let you jump back to any parent folder. On a window 700 pixels wide or narrower, such as a phone, the folder list opens from the **Folders** button and closes when you pick a folder.
 
 ### See the actual designs
 
@@ -75,7 +75,7 @@ Each design's thumbnail and size are cached in your browser, so a folder you hav
 
 Nothing is uploaded anywhere. Stitch data is read and rendered in your browser, in memory.
 
-Stitch Gallery also handles cloud-backed folders. The gallery reads only the file names while it scans, and it reads a design's contents only when that design's card comes near the screen. If a file in OneDrive, iCloud, or Dropbox has not been downloaded to your computer, opening it can trigger a download. The gallery waits up to 30 seconds for each file and works on four at a time. A file that has not arrived by then is marked **cloud-only**, and the rest of the page keeps working. The first time you open a large cloud-only folder, thumbnails appear as the files finish downloading.
+Stitch Gallery also handles cloud-backed folders. The gallery reads only the file names while it scans, and it reads a design's contents only when that design's card comes near the screen. If a file in OneDrive, iCloud, or Dropbox has not been downloaded to your computer, opening it can trigger a download. The gallery waits up to 30 seconds for each file and draws four cards at a time (a size or date sort reads 12 file sizes at a time). A file that has not arrived by then is marked **cloud-only**, and the rest of the page keeps working. The first time you open a large cloud-only folder, thumbnails appear as the files finish downloading.
 
 The folder structure is scanned once when you open it, so moving between folders afterward is fast.
 
@@ -101,7 +101,7 @@ If your embroidery files are stored in the cloud, make the folder available offl
 
 These formats are listed with a "preview not supported yet" note. You can favorite them and cannot preview them: `.jef`, `.exp`, `.vp3`, `.hus`, `.xxx`, `.sew`, `.pec`, `.vip`, `.shv`, `.pcs` and `.emd`.
 
-Unsupported files still appear in the gallery, but show a **can't preview** placeholder.
+Files in the eleven listed formats still appear, with a **can't preview** placeholder. Other file types are left out.
 
 ---
 
@@ -132,13 +132,13 @@ The result is a simple workflow: **point Stitch Gallery at an existing embroider
 
 ## Tests
 
-The gallery needs nothing installed. The tests are for anyone changing the file readers. They use the test runner built into Node 18 or newer and need no packages.
+The gallery needs nothing installed. The tests are for anyone changing the file readers. They use the test runner built into Node, so install Node 18 or newer from nodejs.org first. They need no packages.
 
 ```bash
 bash scripts/validate.sh
 ```
 
-After cloning, run `git config core.hooksPath .githooks` once, so the pre-commit hook runs these tests before every commit.
+After cloning, run `git config core.hooksPath .githooks` once, so the pre-commit hook runs these tests before every commit. Each commit message also needs a story number, such as `(#53)`.
 
 The tests load the readers straight out of `stitch-gallery.html` and check them against sample designs they build from known stitches, so they contain no one's real designs. They cover stitch positions, jumps, color changes, the thread palette, the flipped DST axis and the coordinate limits of both formats.
 
@@ -148,3 +148,11 @@ The tests load the readers straight out of `stitch-gallery.html` and check them 
 
 * [Catalog](docs/CATALOG.md) lists the scripts and config files and what each does
 * [Sharing](docs/SHARING.md) records whether the repo is meant to be shared and what is still open
+* [Backlog config](docs/backlog-config.json) names the owner's GitHub Project and is not needed to use the gallery
+
+### Folders
+
+* `scripts/` holds the validation command
+* `tests/` holds the parser tests
+* `.githooks/` holds the commit hooks
+* `docs/` holds the catalog, sharing record, accepted audit rows and backlog config
