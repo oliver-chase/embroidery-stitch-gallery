@@ -51,8 +51,8 @@
     header .count { margin-left: 0; }
     #search { flex: 1 1 100%; width: auto; max-width: none; order: 5; }
     #menuBtn { display: inline-block; }
-    #sidebar { position: fixed; top: 0; bottom: 0; left: 0; z-index: 60; transform: translateX(-100%); transition: transform 0.15s; box-shadow: 2px 0 12px rgba(0,0,0,0.15); }
-    #sidebar.open { transform: none; }
+    #sidebar { position: fixed; top: 0; bottom: 0; left: 0; z-index: 60; transform: translateX(-100%); visibility: hidden; transition: transform 0.15s, visibility 0.15s; box-shadow: 2px 0 12px rgba(0,0,0,0.15); }
+    #sidebar.open { transform: none; visibility: visible; }
     #grid { padding: 12px 14px 32px; gap: 12px; }
     #breadcrumb, #sortBar, #status { padding-left: 14px; padding-right: 14px; }
   }
@@ -194,9 +194,9 @@
     <button type="button" id="lbClose" class="secondary lb-close" aria-label="Close preview">Close</button>
     <canvas id="lbCanvas" width="600" height="600"></canvas>
     <div class="lb-meta" id="lbName"></div>
-    <button type="button" id="lbFav" class="lb-fav" aria-pressed="false" title="Favorite" disabled>☆</button>
+    <button type="button" id="lbFav" class="lb-fav" aria-label="Favorite" aria-pressed="false" title="Favorite" disabled>☆</button>
     <div class="lb-play">
-      <button type="button" id="lbPlayBtn" aria-label="Play">▶ Play</button>
+      <button type="button" id="lbPlayBtn">▶ Play</button>
       <input type="range" id="lbScrub" min="0" max="1000" value="1000" aria-label="Playback position">
       <select id="lbSpeed" aria-label="Playback speed">
         <option value="1">1×</option><option value="2">2×</option><option value="5">5×</option>
@@ -477,6 +477,9 @@ const breadcrumb = document.getElementById('breadcrumb');
 const menuBtn = document.getElementById('menuBtn');
 // On a narrow screen the folder list is a drawer that slides in from the Folders button.
 menuBtn.addEventListener('click', () => menuBtn.setAttribute('aria-expanded', sidebar.classList.toggle('open')));
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && sidebar.classList.contains('open')) { sidebar.classList.remove('open'); menuBtn.setAttribute('aria-expanded', 'false'); menuBtn.focus(); }
+});
 const SUPPORTED = ['dst', 'pes'];
 // Other embroidery formats are listed too, as "not supported yet" cards, so a
 // folder of 400 files never shows a gallery of 250 with no explanation.
@@ -508,13 +511,13 @@ function renderTreeNode(node, depth) {
   const sorted = [...node.folders.values()].sort(byName);
   for (const child of sorted) childrenWrap.appendChild(renderTreeNode(child, depth+1));
   wrap.appendChild(childrenWrap);
-  caret.addEventListener('click', e => { e.stopPropagation(); caret.classList.toggle('open'); childrenWrap.classList.toggle('open'); });
-  const openRow = () => {
-    if (hasChildren && !childrenWrap.classList.contains('open')) { caret.classList.add('open'); childrenWrap.classList.add('open'); }
-    navigateTo(node.path);
-  };
-  row.addEventListener('click', openRow); activatable(row, openRow);
-  if (depth === 0) { caret.classList.add('open'); childrenWrap.classList.add('open'); }
+  const setOpen = open => { caret.classList.toggle('open', open); childrenWrap.classList.toggle('open', open); if (hasChildren) row.setAttribute('aria-expanded', String(open)); };
+  caret.addEventListener('click', e => { e.stopPropagation(); setOpen(!childrenWrap.classList.contains('open')); });
+  const openRow = () => { if (hasChildren) setOpen(true); navigateTo(node.path); };
+  row.addEventListener('click', openRow);
+  // From the keyboard, Enter on the open folder you are already in collapses it.
+  activatable(row, () => (hasChildren && row.classList.contains('active') && childrenWrap.classList.contains('open')) ? setOpen(false) : openRow());
+  setOpen(depth === 0);
   return wrap;
 }
 function setActiveTreeRow(path) { document.querySelectorAll('.trow').forEach(r => r.classList.toggle('active', r.dataset.path === path)); }
@@ -662,7 +665,7 @@ function makeDesignCardShell(fileRef, showPath) {
     meta.appendChild(st);
   }
 
-  const favEl = document.createElement('button'); favEl.type = 'button'; favEl.className = 'fav'; favEl.title = 'Favorite';
+  const favEl = document.createElement('button'); favEl.type = 'button'; favEl.className = 'fav'; favEl.title = 'Favorite'; favEl.setAttribute('aria-label', 'Favorite');
   card.appendChild(favEl);
 
   const item = { fileRef, card, canvas, subEl, favEl, size: null, info: null, state: 'idle' };
@@ -900,7 +903,7 @@ searchEl.addEventListener('keydown', e => {
   if (e.key === 'Escape') { clearTimeout(searchTimer); searchEl.value = ''; searchEl.blur(); navigateTo(currentPath); }
 });
 document.addEventListener('keydown', e => {
-  if (e.key === '/' && !searchEl.hidden && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) {
+  if (e.key === '/' && !searchEl.hidden && !lightbox.classList.contains('open') && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) {
     e.preventDefault(); searchEl.focus();
   }
 });
