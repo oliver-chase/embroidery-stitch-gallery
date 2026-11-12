@@ -139,3 +139,10 @@ bash scripts/validate.sh
 ```
 
 The tests load the readers straight out of `stitch-gallery.html` and check them against sample designs they build from known stitches, so they contain no one's real designs. They cover stitch positions, jumps, color changes, the thread palette, the flipped DST axis and the size limits of both formats.
+
+---
+
+## More documents
+
+* [Catalog](docs/CATALOG.md) lists every part of the repo and what it does
+* [Sharing](docs/SHARING.md) records whether the repo is meant to be shared and what is still open
