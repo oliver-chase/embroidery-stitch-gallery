@@ -83,7 +83,7 @@ The folder structure is scanned once when you open it, so moving between folders
 
 ## Usage
 
-1. Download `stitch-gallery.html`.
+1. Download `stitch-gallery.html` from [the repository](https://github.com/oliver-chase/embroidery-stitch-gallery/blob/main/stitch-gallery.html) with the Download raw file button.
 2. Open it in **Chrome or Edge**, which have the best folder support.
 3. Click **Choose Folder…** and select your top-level embroidery folder, or drag the folder onto the page.
 4. Browse the folder tree or folder tiles. Click a design to see a larger preview.
@@ -99,7 +99,7 @@ If your embroidery files are stored in the cloud, make the folder available offl
 | `.dst` | Tajima commercial format. Stitch data is supported; the format does not contain thread colors, so previews use stand-in colors. |
 | `.pes` | Brother / Babylock format. Embedded thread colors are read from the standard PEC thread palette.                             |
 
-These formats are listed with a "preview not supported yet" note and can still be favorited, but not previewed: `.jef`, `.exp`, `.vp3`, `.hus`, `.xxx`, `.sew`, `.pec`, `.vip`, `.shv`, `.pcs` and `.emd`.
+These formats are listed with a "preview not supported yet" note. You can favorite them and cannot preview them: `.jef`, `.exp`, `.vp3`, `.hus`, `.xxx`, `.sew`, `.pec`, `.vip`, `.shv`, `.pcs` and `.emd`.
 
 Unsupported files still appear in the gallery, but show a **can't preview** placeholder.
 

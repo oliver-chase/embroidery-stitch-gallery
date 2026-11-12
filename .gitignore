@@ -3,3 +3,7 @@
 # iCloud sync-conflict copies ("name 2.ext") are never project files
 * 2
 * 2.*
+
+# Secrets stay out of git
+.env
+.env.*
