@@ -688,7 +688,7 @@ async function renderCard(item, cur) {
     // size + modified time are available without downloading a cloud file
     const m = await statOf(fileRef);
     // One entry per path. Size and date are its signature, so a changed file overwrites its old thumbnail.
-    const key = `${CACHE_VERSION}|${fileRef.path}`;
+    const key = fileRef.path;
     const sig = `${m.size}|${m.mtime}`;
     const found = await cacheGet(key), hit = found && found.sig === sig ? found : null;
     const stale = () => cur.gen !== navGen || item.state !== 'queued';
@@ -732,20 +732,25 @@ async function renderCard(item, cur) {
 
 // ---------------- CACHE ----------------
 // IndexedDB holds the last folder handle and one small thumbnail plus size info
-// per design, keyed by path + size + modified time, so reopening a library
-// paints from the cache without reading any file. Every call fails soft: in a
-// private window or an unsupported browser HoopView simply works uncached.
-// Bump CACHE_VERSION when the parsers or the card renderer change.
+// per design, keyed by path and checked against size + modified time, so
+// reopening a library paints from the cache without reading any file. Every
+// call fails soft: in a private window or an unsupported browser HoopView
+// simply works uncached. Bump CACHE_VERSION when the parsers or the card
+// renderer change: the database upgrade then drops every old thumbnail.
 const CACHE_VERSION = 5;
 let dbPromise = null;
 function openDb() {
   if (!dbPromise) dbPromise = new Promise(res => {
     try {
-      const rq = indexedDB.open('hoopview', 1);
+      const rq = indexedDB.open('hoopview', CACHE_VERSION);
       rq.onupgradeneeded = () => {
-        for (const n of ['thumbs', 'handles']) if (!rq.result.objectStoreNames.contains(n)) rq.result.createObjectStore(n);
+        const db = rq.result;
+        if (db.objectStoreNames.contains('thumbs')) db.deleteObjectStore('thumbs');
+        db.createObjectStore('thumbs');
+        if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles');
       };
-      rq.onsuccess = () => res(rq.result);
+      // A newer HoopView in another tab needs this connection closed to upgrade.
+      rq.onsuccess = () => { rq.result.onversionchange = () => rq.result.close(); res(rq.result); };
       rq.onerror = rq.onblocked = () => res(null);
     } catch (e) { res(null); }
   });
